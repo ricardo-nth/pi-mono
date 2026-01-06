@@ -18,8 +18,8 @@ interface HotkeysConfig {
 /**
  * Popup component showing keyboard shortcuts in 3-column layout.
  * Col 1: Navigation, Editing
- * Col 2: Controls, Model
- * Col 3: Commands (+ Extensions)
+ * Col 2: Controls
+ * Col 3: Model, Commands (+ Extensions)
  */
 export class HotkeysPopupComponent extends Container {
 	private col1: HotkeyItem[] = [];
@@ -72,26 +72,31 @@ export class HotkeysPopupComponent extends Container {
 		this.col1.push({ type: "hotkey", key: editorKeyDisplay("submit"), action: "Send" });
 		this.col1.push({ type: "hotkey", key: editorKeyDisplay("newLine"), action: "New line" });
 		this.col1.push({ type: "hotkey", key: editorKeyDisplay("deleteWordBackward"), action: "Delete word" });
+		this.col1.push({ type: "hotkey", key: "Ctrl+K", action: "Delete line" });
 		this.col1.push({ type: "hotkey", key: editorKeyDisplay("deleteToLineStart"), action: "Del to start" });
 		this.col1.push({ type: "hotkey", key: editorKeyDisplay("deleteToLineEnd"), action: "Del to end" });
 
 		// COLUMN 2: Controls + Model
 		this.col2.push({ type: "header", category: "Controls" });
-		this.col2.push({ type: "hotkey", key: appKeyDisplay("interrupt"), action: "Abort" });
-		this.col2.push({ type: "hotkey", key: appKeyDisplay("clear"), action: "Clear / exit" });
+		this.col2.push({ type: "hotkey", key: appKeyDisplay("interrupt"), action: "Interrupt" });
+		this.col2.push({ type: "hotkey", key: appKeyDisplay("clear"), action: "Clear" });
+		this.col2.push({ type: "hotkey", key: "Ctrl+C ×2", action: "Exit" });
+		this.col2.push({ type: "hotkey", key: "Ctrl+D", action: "Exit (empty)" });
 		this.col2.push({ type: "hotkey", key: appKeyDisplay("suspend"), action: "Suspend" });
 		this.col2.push({ type: "hotkey", key: appKeyDisplay("expandTools"), action: "Tool output" });
 		this.col2.push({ type: "hotkey", key: appKeyDisplay("toggleThinking"), action: "Thinking" });
 		this.col2.push({ type: "hotkey", key: appKeyDisplay("externalEditor"), action: "Ext. editor" });
 		this.col2.push({ type: "hotkey", key: appKeyDisplay("followUp"), action: "Follow-up" });
 		this.col2.push({ type: "hotkey", key: "Ctrl+V", action: "Paste image" });
+		this.col2.push({ type: "hotkey", key: "Drop files", action: "Attach" });
 
-		this.col2.push({ type: "spacer" }); // Blank line before header
-		this.col2.push({ type: "header", category: "Model" });
-		this.col2.push({ type: "hotkey", key: appKeyDisplay("cycleModelForward"), action: "Cycle model" });
-		this.col2.push({ type: "hotkey", key: appKeyDisplay("cycleThinkingLevel"), action: "Cycle thinking" });
+		// COLUMN 3: Model + Commands + Extensions
+		this.col3.push({ type: "header", category: "Model" });
+		this.col3.push({ type: "hotkey", key: appKeyDisplay("selectModel"), action: "Select model" });
+		this.col3.push({ type: "hotkey", key: appKeyDisplay("cycleModelForward"), action: "Cycle model" });
+		this.col3.push({ type: "hotkey", key: appKeyDisplay("cycleThinkingLevel"), action: "Cycle thinking" });
 
-		// COLUMN 3: Commands + Extensions
+		this.col3.push({ type: "spacer" });
 		this.col3.push({ type: "header", category: "Commands" });
 		this.col3.push({ type: "hotkey", key: "/", action: "Slash commands" });
 		this.col3.push({ type: "hotkey", key: "!", action: "Bash command" });
@@ -155,17 +160,17 @@ export class HotkeysPopupComponent extends Container {
 
 		const gap = 4;
 
-		// Find max rows and pad shorter columns at TOP for bottom alignment
+		// Find max rows for top-aligned columns
 		const maxRows = Math.max(this.col1.length, this.col2.length, this.col3.length);
 
-		// Pad columns from top with empty items
+		// Pad columns at bottom with empty items (top-aligned)
 		const pad1 = maxRows - this.col1.length;
 		const pad2 = maxRows - this.col2.length;
 		const pad3 = maxRows - this.col3.length;
 
-		const paddedCol1 = [...Array(pad1).fill({ type: "spacer" }), ...this.col1];
-		const paddedCol2 = [...Array(pad2).fill({ type: "spacer" }), ...this.col2];
-		const paddedCol3 = [...Array(pad3).fill({ type: "spacer" }), ...this.col3];
+		const paddedCol1 = [...this.col1, ...Array(pad1).fill({ type: "spacer" })];
+		const paddedCol2 = [...this.col2, ...Array(pad2).fill({ type: "spacer" })];
+		const paddedCol3 = [...this.col3, ...Array(pad3).fill({ type: "spacer" })];
 
 		// Render rows
 		for (let i = 0; i < maxRows; i++) {
