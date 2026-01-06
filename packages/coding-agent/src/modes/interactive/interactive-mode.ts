@@ -250,82 +250,11 @@ export class InteractiveMode {
 	async init(): Promise<void> {
 		if (this.isInitialized) return;
 
-		// Add header with keybindings from config
+		// Add header with logo only
+		// NOTE: Startup hotkey instructions removed - they now live in HotkeysPopupComponent (? key).
+		// If upstream adds new hotkeys here, add them to hotkeys-popup.ts instead of restoring this block.
 		const logo = theme.bold(theme.fg("accent", APP_NAME)) + theme.fg("dim", ` v${this.version}`);
-
-		// Format keybinding for startup display (lowercase, compact)
-		const formatStartupKey = (keys: string | string[]): string => {
-			const keyArray = Array.isArray(keys) ? keys : [keys];
-			return keyArray.join("/");
-		};
-
-		const kb = this.keybindings;
-		const interrupt = formatStartupKey(kb.getKeys("interrupt"));
-		const clear = formatStartupKey(kb.getKeys("clear"));
-		const exit = formatStartupKey(kb.getKeys("exit"));
-		const suspend = formatStartupKey(kb.getKeys("suspend"));
-		const deleteToLineEnd = formatStartupKey(getEditorKeybindings().getKeys("deleteToLineEnd"));
-		const cycleThinkingLevel = formatStartupKey(kb.getKeys("cycleThinkingLevel"));
-		const cycleModelForward = formatStartupKey(kb.getKeys("cycleModelForward"));
-		const cycleModelBackward = formatStartupKey(kb.getKeys("cycleModelBackward"));
-		const selectModel = formatStartupKey(kb.getKeys("selectModel"));
-		const expandTools = formatStartupKey(kb.getKeys("expandTools"));
-		const toggleThinking = formatStartupKey(kb.getKeys("toggleThinking"));
-		const externalEditor = formatStartupKey(kb.getKeys("externalEditor"));
-		const followUp = formatStartupKey(kb.getKeys("followUp"));
-
-		const instructions =
-			theme.fg("dim", interrupt) +
-			theme.fg("muted", " to interrupt") +
-			"\n" +
-			theme.fg("dim", clear) +
-			theme.fg("muted", " to clear") +
-			"\n" +
-			theme.fg("dim", `${clear} twice`) +
-			theme.fg("muted", " to exit") +
-			"\n" +
-			theme.fg("dim", exit) +
-			theme.fg("muted", " to exit (empty)") +
-			"\n" +
-			theme.fg("dim", suspend) +
-			theme.fg("muted", " to suspend") +
-			"\n" +
-			theme.fg("dim", deleteToLineEnd) +
-			theme.fg("muted", " to delete line") +
-			"\n" +
-			theme.fg("dim", cycleThinkingLevel) +
-			theme.fg("muted", " to cycle thinking") +
-			"\n" +
-			theme.fg("dim", `${cycleModelForward}/${cycleModelBackward}`) +
-			theme.fg("muted", " to cycle models") +
-			"\n" +
-			theme.fg("dim", selectModel) +
-			theme.fg("muted", " to select model") +
-			"\n" +
-			theme.fg("dim", expandTools) +
-			theme.fg("muted", " to expand tools") +
-			"\n" +
-			theme.fg("dim", toggleThinking) +
-			theme.fg("muted", " to toggle thinking") +
-			"\n" +
-			theme.fg("dim", externalEditor) +
-			theme.fg("muted", " for external editor") +
-			"\n" +
-			theme.fg("dim", "/") +
-			theme.fg("muted", " for commands") +
-			"\n" +
-			theme.fg("dim", "!") +
-			theme.fg("muted", " to run bash") +
-			"\n" +
-			theme.fg("dim", followUp) +
-			theme.fg("muted", " to queue follow-up") +
-			"\n" +
-			theme.fg("dim", "ctrl+v") +
-			theme.fg("muted", " to paste image") +
-			"\n" +
-			theme.fg("dim", "drop files") +
-			theme.fg("muted", " to attach");
-		const header = new Text(`${logo}\n${instructions}`, 1, 0);
+		const header = new Text(logo, 1, 0);
 
 		// Setup UI layout
 		this.ui.addChild(new Spacer(1));
