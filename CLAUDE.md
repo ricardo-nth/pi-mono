@@ -1,23 +1,69 @@
 # Pi Mono - Custom Fork
 
-This is a personal fork of [badlogic/pi-mono](https://github.com/badlogic/pi-mono) with custom UI improvements.
+Personal fork of [badlogic/pi-mono](https://github.com/badlogic/pi-mono) with UI improvements for the coding agent.
 
 **Fork:** https://github.com/ricardo-nth/pi-mono
+**Upstream:** https://github.com/badlogic/pi-mono
+
+## Scope of This Fork
+
+**UI changes only** - No functional code modifications. Focus is on making the coding agent more pleasant to use visually. System prompt and core logic remain untouched.
+
+When syncing upstream, functional improvements come from Mario's repo. Our changes layer on top as UI polish.
+
+---
+
+## Monorepo Structure
+
+This is a monorepo with multiple packages. The `coding-agent` is what we use, but it depends on several other packages.
+
+### Package Overview
+
+| Package | npm Name | Description | Needed for `po`? |
+|---------|----------|-------------|------------------|
+| **coding-agent** | `@mariozechner/pi-coding-agent` | CLI coding agent (like Claude Code, Codex) | **Yes** - this IS `po` |
+| **agent** | `@mariozechner/pi-agent-core` | Core agent abstraction, state management, transports | **Yes** - dependency |
+| **ai** | `@mariozechner/pi-ai` | Unified LLM API, model discovery, provider configs | **Yes** - dependency |
+| **tui** | `@mariozechner/pi-tui` | Terminal UI library with differential rendering | **Yes** - dependency |
+| **web-ui** | `@mariozechner/pi-web-ui` | Web UI components for chat interfaces | No |
+| **mom** | `@mariozechner/pi-mom` | Slack bot that delegates to pi agent | No |
+| **pods** | `@mariozechner/pi` | CLI for vLLM deployments on GPU pods | No |
+
+### Dependency Graph
+
+```
+coding-agent (po command)
+    ├── pi-agent-core   (agent logic, tools, state)
+    ├── pi-ai           (LLM providers, model registry)
+    └── pi-tui          (terminal rendering)
+```
+
+### Other Interesting Packages
+
+**MOM (`packages/mom`)** - Slack bot integration. Could be interesting for running pi as a Slack assistant.
+
+**Web UI (`packages/web-ui`)** - Reusable chat components. Could build a web version of pi with this.
+
+**Pods (`packages/pods`)** - For self-hosting LLMs on GPU pods. Advanced infrastructure stuff.
+
+---
 
 ## Quick Reference
 
 | Command | Description |
 |---------|-------------|
-| `po` | Run your custom Pi build |
-| `pi` | Run official npm version (if installed) |
-| `npm run build` | Rebuild after changes |
-| `npm run dev` | Watch mode for development |
+| `po` | Your custom Pi build |
+| `pi` | Official npm version |
+| `npm run build` | Rebuild all packages |
+| `cd packages/coding-agent && npm run build` | Rebuild just coding-agent |
 
-## Custom Changes
+---
+
+## Custom UI Changes
 
 ### Model Selector Improvements
-- **Grouped by provider** - Models organized under provider headers (Anthropic, OpenAI, etc.)
-- **Hidden model filters** - Configure in `~/.pi/agent/settings.json`
+- **Grouped by provider** - Models organized under provider headers
+- **Hidden model filters** - Filter out legacy/unused models
 - **Cleaner display** - No `[provider]` badges, spacing between groups
 
 ### Settings: `~/.pi/agent/settings.json`
@@ -37,98 +83,97 @@ This is a personal fork of [badlogic/pi-mono](https://github.com/badlogic/pi-mon
 }
 ```
 
+---
+
 ## Development Workflow
 
-### Building
+### Building After Changes
 ```bash
-cd packages/coding-agent
+# Full rebuild (if you changed dependencies)
 npm run build
-# The `po` command automatically uses the new build
+
+# Just coding-agent (faster, for UI changes)
+cd packages/coding-agent && npm run build
 ```
 
-### Testing Changes
+### Testing
 ```bash
-# Run your custom build
-po
-
-# Compare with official version
-pi
+po          # Your build
+pi          # Official (for comparison)
 ```
+
+---
 
 ## Syncing with Upstream
 
-When you see "Update available" or want to pull Mario's latest changes:
+When pi shows "Update available" or you want Mario's latest:
 
 ```bash
-# 1. Fetch upstream changes
+# 1. Fetch upstream
 git fetch upstream
 
-# 2. Check what's new (optional)
+# 2. See what's new
 git log HEAD..upstream/main --oneline
 
-# 3. Merge upstream into your branch
+# 3. Merge
 git merge upstream/main
 
-# 4. Resolve conflicts if any (your UI changes are in):
+# 4. Resolve conflicts (your UI files):
 #    - packages/coding-agent/src/modes/interactive/components/model-selector.ts
 #    - packages/coding-agent/src/core/settings-manager.ts
 
-# 5. Rebuild
-npm install
-npm run build
-
-# 6. Test
+# 5. Rebuild & test
+npm install && npm run build
 po
 
-# 7. Push to your fork
+# 6. Push to your fork
 git push origin main
 ```
 
-### If Merge Conflicts Occur
-
-Your custom files (keep your versions):
-- `model-selector.ts` - grouped display, filtering
-- `settings-manager.ts` - modelFilters settings
-
-## Setup (One-Time)
-
-### 1. Fork on GitHub
-Go to https://github.com/badlogic/pi-mono → Fork
-
-### 2. Clone and Configure Remotes
-```bash
-git clone https://github.com/ricardo-nth/pi-mono.git
-cd pi-mono
-git remote add upstream https://github.com/badlogic/pi-mono.git
-```
-
-### 3. Install Dependencies
-```bash
-npm install
-npm run build
-```
-
-### 4. Set Up `po` Command
-```bash
-# Add to ~/.zshrc or ~/.bashrc:
-alias po='node /Users/admin/Documents/Projects/Archive/Contributions/pi-mono/packages/coding-agent/dist/cli.js'
-
-# Reload shell
-source ~/.zshrc
-```
+---
 
 ## File Locations
 
+### Your Modified Files (UI only)
+| File | Changes |
+|------|---------|
+| `packages/coding-agent/src/modes/interactive/components/model-selector.ts` | Grouped display, filtering |
+| `packages/coding-agent/src/core/settings-manager.ts` | modelFilters settings |
+
+### User Config
 | File | Purpose |
 |------|---------|
-| `packages/coding-agent/src/modes/interactive/components/model-selector.ts` | Model selector UI |
-| `packages/coding-agent/src/core/settings-manager.ts` | Settings including modelFilters |
-| `~/.pi/agent/settings.json` | User settings (model filters, theme, etc.) |
+| `~/.pi/agent/settings.json` | Model filters, theme, defaults |
+| `~/.local/bin/po` | Your custom command script |
+
+### Key Directories for UI Work
+| Directory | What's There |
+|-----------|--------------|
+| `packages/coding-agent/src/modes/interactive/components/` | All TUI components |
+| `packages/coding-agent/src/modes/interactive/theme/` | Theme JSON files |
+| `packages/tui/src/components/` | Base TUI primitives (Text, Input, etc.) |
+
+---
 
 ## Future UI Ideas
 
 - [ ] Collapsible provider sections
 - [ ] Favorite models pinned to top
-- [ ] Model cost/speed indicators
-- [ ] Quick switch between recent models
-- [ ] Custom model aliases
+- [ ] Model cost/speed indicators in selector
+- [ ] Quick switch between recent models (Ctrl+R?)
+- [ ] Custom model aliases/nicknames
+- [ ] Better thinking level indicator
+- [ ] Session list improvements
+
+---
+
+## Setup Reference (Already Done)
+
+### Remotes
+```
+origin   → https://github.com/ricardo-nth/pi-mono.git
+upstream → https://github.com/badlogic/pi-mono.git
+```
+
+### po Command
+Script at `~/.local/bin/po` runs the local build.
