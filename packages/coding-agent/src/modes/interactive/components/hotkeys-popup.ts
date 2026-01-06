@@ -3,7 +3,7 @@ import { theme } from "../theme/theme.js";
 import { DynamicBorder } from "./dynamic-border.js";
 
 interface HotkeyItem {
-	type: "header" | "hotkey";
+	type: "header" | "hotkey" | "spacer";
 	category?: string;
 	key?: string;
 	action?: string;
@@ -16,12 +16,15 @@ interface HotkeysConfig {
 }
 
 /**
- * Popup component showing keyboard shortcuts grouped by category.
- * Similar to model selector but displays hotkeys instead.
+ * Popup component showing keyboard shortcuts in 3-column layout.
+ * Col 1: Navigation, Editing
+ * Col 2: Controls, Model
+ * Col 3: Commands (+ Extensions)
  */
 export class HotkeysPopupComponent extends Container {
-	private displayItems: HotkeyItem[] = [];
-	private selectedIndex: number = 0;
+	private col1: HotkeyItem[] = [];
+	private col2: HotkeyItem[] = [];
+	private col3: HotkeyItem[] = [];
 	private onCancelCallback: () => void;
 	private listContainer: Container;
 
@@ -34,9 +37,9 @@ export class HotkeysPopupComponent extends Container {
 		this.addChild(new DynamicBorder());
 		this.addChild(new Spacer(1));
 
-		// Title
-		this.addChild(new Text(theme.bold(theme.fg("accent", "Keyboard Shortcuts")), 1, 0));
-		this.addChild(new Text(theme.fg("muted", "Press Escape to close"), 1, 0));
+		// Title (indented to align with columns)
+		this.addChild(new Text("  " + theme.bold(theme.fg("accent", "Keyboard Shortcuts")), 0, 0));
+		this.addChild(new Text("  " + theme.fg("muted", "Press Escape or ? to close"), 0, 0));
 		this.addChild(new Spacer(1));
 
 		// Create list container
@@ -48,99 +51,151 @@ export class HotkeysPopupComponent extends Container {
 		// Add bottom border
 		this.addChild(new DynamicBorder());
 
-		// Build hotkey items
-		this.buildHotkeyItems(config);
+		// Build hotkey items into columns
+		this.buildColumns(config);
 		this.updateList();
 	}
 
-	private buildHotkeyItems(config: HotkeysConfig): void {
+	private buildColumns(config: HotkeysConfig): void {
 		const { editorKeyDisplay, appKeyDisplay, extensionShortcuts } = config;
 
-		// Navigation
-		this.displayItems.push({ type: "header", category: "Navigation" });
-		this.displayItems.push({ type: "hotkey", key: "Arrow keys", action: "Move cursor / browse history" });
-		this.displayItems.push({ type: "hotkey", key: editorKeyDisplay("cursorWordLeft"), action: "Move word left" });
-		this.displayItems.push({ type: "hotkey", key: editorKeyDisplay("cursorWordRight"), action: "Move word right" });
-		this.displayItems.push({ type: "hotkey", key: editorKeyDisplay("cursorLineStart"), action: "Start of line" });
-		this.displayItems.push({ type: "hotkey", key: editorKeyDisplay("cursorLineEnd"), action: "End of line" });
+		// COLUMN 1: Navigation + Editing
+		this.col1.push({ type: "header", category: "Navigation" });
+		this.col1.push({ type: "hotkey", key: "Arrows", action: "Move / history" });
+		this.col1.push({ type: "hotkey", key: editorKeyDisplay("cursorWordLeft"), action: "Word left" });
+		this.col1.push({ type: "hotkey", key: editorKeyDisplay("cursorWordRight"), action: "Word right" });
+		this.col1.push({ type: "hotkey", key: editorKeyDisplay("cursorLineStart"), action: "Line start" });
+		this.col1.push({ type: "hotkey", key: editorKeyDisplay("cursorLineEnd"), action: "Line end" });
 
-		// Editing
-		this.displayItems.push({ type: "header", category: "Editing" });
-		this.displayItems.push({ type: "hotkey", key: editorKeyDisplay("submit"), action: "Send message" });
-		this.displayItems.push({ type: "hotkey", key: editorKeyDisplay("newLine"), action: "New line" });
-		this.displayItems.push({ type: "hotkey", key: editorKeyDisplay("deleteWordBackward"), action: "Delete word" });
-		this.displayItems.push({ type: "hotkey", key: editorKeyDisplay("deleteToLineStart"), action: "Delete to start" });
-		this.displayItems.push({ type: "hotkey", key: editorKeyDisplay("deleteToLineEnd"), action: "Delete to end" });
+		this.col1.push({ type: "spacer" }); // Blank line before header
+		this.col1.push({ type: "header", category: "Editing" });
+		this.col1.push({ type: "hotkey", key: editorKeyDisplay("submit"), action: "Send" });
+		this.col1.push({ type: "hotkey", key: editorKeyDisplay("newLine"), action: "New line" });
+		this.col1.push({ type: "hotkey", key: editorKeyDisplay("deleteWordBackward"), action: "Delete word" });
+		this.col1.push({ type: "hotkey", key: editorKeyDisplay("deleteToLineStart"), action: "Del to start" });
+		this.col1.push({ type: "hotkey", key: editorKeyDisplay("deleteToLineEnd"), action: "Del to end" });
 
-		// Commands
-		this.displayItems.push({ type: "header", category: "Commands" });
-		this.displayItems.push({ type: "hotkey", key: "/", action: "Slash commands" });
-		this.displayItems.push({ type: "hotkey", key: "!", action: "Run bash command" });
-		this.displayItems.push({ type: "hotkey", key: "?", action: "This help popup" });
+		// COLUMN 2: Controls + Model
+		this.col2.push({ type: "header", category: "Controls" });
+		this.col2.push({ type: "hotkey", key: appKeyDisplay("interrupt"), action: "Abort" });
+		this.col2.push({ type: "hotkey", key: appKeyDisplay("clear"), action: "Clear / exit" });
+		this.col2.push({ type: "hotkey", key: appKeyDisplay("suspend"), action: "Suspend" });
+		this.col2.push({ type: "hotkey", key: appKeyDisplay("expandTools"), action: "Tool output" });
+		this.col2.push({ type: "hotkey", key: appKeyDisplay("toggleThinking"), action: "Thinking" });
+		this.col2.push({ type: "hotkey", key: appKeyDisplay("externalEditor"), action: "Ext. editor" });
+		this.col2.push({ type: "hotkey", key: appKeyDisplay("followUp"), action: "Follow-up" });
+		this.col2.push({ type: "hotkey", key: "Ctrl+V", action: "Paste image" });
 
-		// App Controls
-		this.displayItems.push({ type: "header", category: "Controls" });
-		this.displayItems.push({ type: "hotkey", key: appKeyDisplay("interrupt"), action: "Abort / cancel" });
-		this.displayItems.push({ type: "hotkey", key: appKeyDisplay("clear"), action: "Clear / exit (2x)" });
-		this.displayItems.push({ type: "hotkey", key: appKeyDisplay("suspend"), action: "Suspend to background" });
-		this.displayItems.push({ type: "hotkey", key: appKeyDisplay("expandTools"), action: "Toggle tool output" });
-		this.displayItems.push({ type: "hotkey", key: appKeyDisplay("toggleThinking"), action: "Toggle thinking" });
-		this.displayItems.push({ type: "hotkey", key: appKeyDisplay("externalEditor"), action: "External editor" });
-		this.displayItems.push({ type: "hotkey", key: appKeyDisplay("followUp"), action: "Queue follow-up" });
-		this.displayItems.push({ type: "hotkey", key: "Ctrl+V", action: "Paste image" });
+		this.col2.push({ type: "spacer" }); // Blank line before header
+		this.col2.push({ type: "header", category: "Model" });
+		this.col2.push({ type: "hotkey", key: appKeyDisplay("cycleModelForward"), action: "Cycle model" });
+		this.col2.push({ type: "hotkey", key: appKeyDisplay("cycleThinkingLevel"), action: "Cycle thinking" });
 
-		// Model & Thinking
-		this.displayItems.push({ type: "header", category: "Model" });
-		this.displayItems.push({ type: "hotkey", key: appKeyDisplay("cycleModelForward"), action: "Cycle models" });
-		this.displayItems.push({ type: "hotkey", key: appKeyDisplay("cycleThinkingLevel"), action: "Cycle thinking" });
+		// COLUMN 3: Commands + Extensions
+		this.col3.push({ type: "header", category: "Commands" });
+		this.col3.push({ type: "hotkey", key: "/", action: "Slash commands" });
+		this.col3.push({ type: "hotkey", key: "!", action: "Bash command" });
+		this.col3.push({ type: "hotkey", key: "!!", action: "Silent bash" });
+		this.col3.push({ type: "hotkey", key: "?", action: "This popup" });
 
 		// Extensions (if any)
 		if (extensionShortcuts && extensionShortcuts.size > 0) {
-			this.displayItems.push({ type: "header", category: "Extensions" });
+			this.col3.push({ type: "spacer" });
+			this.col3.push({ type: "header", category: "Extensions" });
 			for (const [key, shortcut] of extensionShortcuts) {
-				const description = shortcut.description ?? shortcut.extensionPath;
-				this.displayItems.push({ type: "hotkey", key, action: description });
+				const desc = shortcut.description ?? shortcut.extensionPath;
+				const truncDesc = desc.length > 12 ? desc.slice(0, 11) + "…" : desc;
+				this.col3.push({ type: "hotkey", key, action: truncDesc });
 			}
 		}
+	}
+
+	private renderItem(item: HotkeyItem | undefined, keyWidth: number): string {
+		if (!item) return "";
+		if (item.type === "spacer") return "";
+		if (item.type === "header") {
+			return theme.fg("accent", item.category ?? "");
+		}
+		if (item.key && item.action) {
+			const keyPart = theme.fg("accent", item.key.padEnd(keyWidth));
+			return `${keyPart} ${item.action}`;
+		}
+		return "";
+	}
+
+	private getKeyWidth(col: HotkeyItem[]): number {
+		const keys = col.filter((i) => i.type === "hotkey" && i.key).map((i) => i.key!.length);
+		return Math.max(...keys, 8) + 1;
+	}
+
+	private getColWidth(col: HotkeyItem[], keyWidth: number): number {
+		let maxWidth = 0;
+		for (const item of col) {
+			if (item.type === "header") {
+				maxWidth = Math.max(maxWidth, (item.category ?? "").length);
+			} else if (item.type === "hotkey" && item.key && item.action) {
+				// key (padded) + space + action
+				maxWidth = Math.max(maxWidth, keyWidth + 1 + item.action.length);
+			}
+		}
+		return maxWidth;
 	}
 
 	private updateList(): void {
 		this.listContainer.clear();
 
-		// Calculate max key width for alignment
-		const maxKeyWidth = Math.max(
-			...this.displayItems.filter((item) => item.type === "hotkey" && item.key).map((item) => item.key!.length),
-		);
-		const keyColumnWidth = Math.max(maxKeyWidth + 2, 14); // At least 14, or max + 2 for padding
+		// Calculate key widths for each column
+		const keyWidth1 = this.getKeyWidth(this.col1);
+		const keyWidth2 = this.getKeyWidth(this.col2);
+		const keyWidth3 = this.getKeyWidth(this.col3);
 
-		for (let i = 0; i < this.displayItems.length; i++) {
-			const item = this.displayItems[i];
-			if (!item) continue;
+		// Calculate actual column widths based on content
+		const colWidth1 = this.getColWidth(this.col1, keyWidth1);
+		const colWidth2 = this.getColWidth(this.col2, keyWidth2);
 
-			if (item.type === "header") {
-				// Add blank line before header (except first)
-				if (i > 0) {
-					this.listContainer.addChild(new Spacer(1));
-				}
-				// Render category header with accent color
-				const headerLine = theme.fg("accent", item.category ?? "");
-				this.listContainer.addChild(new Text(headerLine, 1, 0));
-			} else if (item.key && item.action) {
-				// Format: "  Ctrl+C              Abort / cancel"
-				const keyPart = theme.fg("accent", item.key.padEnd(keyColumnWidth));
-				const line = `  ${keyPart} ${item.action}`;
-				this.listContainer.addChild(new Text(line, 0, 0));
-			}
+		const gap = 4;
+
+		// Find max rows and pad shorter columns at TOP for bottom alignment
+		const maxRows = Math.max(this.col1.length, this.col2.length, this.col3.length);
+
+		// Pad columns from top with empty items
+		const pad1 = maxRows - this.col1.length;
+		const pad2 = maxRows - this.col2.length;
+		const pad3 = maxRows - this.col3.length;
+
+		const paddedCol1 = [...Array(pad1).fill({ type: "spacer" }), ...this.col1];
+		const paddedCol2 = [...Array(pad2).fill({ type: "spacer" }), ...this.col2];
+		const paddedCol3 = [...Array(pad3).fill({ type: "spacer" }), ...this.col3];
+
+		// Render rows
+		for (let i = 0; i < maxRows; i++) {
+			const item1 = paddedCol1[i];
+			const item2 = paddedCol2[i];
+			const item3 = paddedCol3[i];
+
+			const str1 = this.renderItem(item1, keyWidth1);
+			const str2 = this.renderItem(item2, keyWidth2);
+			const str3 = this.renderItem(item3, keyWidth3);
+
+			// Calculate visible widths (strip ANSI)
+			const vis1 = str1.replace(/\x1b\[[0-9;]*m/g, "").length;
+			const vis2 = str2.replace(/\x1b\[[0-9;]*m/g, "").length;
+
+			// Pad each column to calculated width
+			const padded1 = str1 + " ".repeat(Math.max(0, colWidth1 - vis1));
+			const padded2 = str2 + " ".repeat(Math.max(0, colWidth2 - vis2));
+
+			const line = `  ${padded1}${" ".repeat(gap)}${padded2}${" ".repeat(gap)}${str3}`;
+			this.listContainer.addChild(new Text(line, 0, 0));
 		}
 	}
 
 	handleInput(keyData: string): void {
 		const kb = getEditorKeybindings();
 
-		// Escape or Ctrl+C closes
-		if (kb.matches(keyData, "selectCancel")) {
+		// Escape, Ctrl+C, or ? closes
+		if (kb.matches(keyData, "selectCancel") || keyData === "?") {
 			this.onCancelCallback();
 		}
-		// Ignore all other input - this is a read-only popup
 	}
 }
