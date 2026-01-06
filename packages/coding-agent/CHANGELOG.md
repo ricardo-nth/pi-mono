@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Added
+
+- Extensions can now replace the footer with `ctx.ui.setFooter()`, see `examples/extensions/custom-footer.ts` ([#481](https://github.com/badlogic/pi-mono/issues/481))
+- Session ID is now forwarded to LLM providers for session-based caching (used by OpenAI Codex for prompt caching).
+- Added `blockImages` setting to prevent images from being sent to LLM providers ([#492](https://github.com/badlogic/pi-mono/pull/492) by [@jsinge97](https://github.com/jsinge97))
+
+### Fixed
+
+- Add `minimatch` as a direct dependency for explicit imports.
+- Status bar now shows correct git branch when running in a git worktree ([#490](https://github.com/badlogic/pi-mono/pull/490) by [@kcosr](https://github.com/kcosr))
+- Interactive mode: Ctrl+V clipboard image paste now works on Wayland sessions by using `wl-paste` with `xclip` fallback ([#488](https://github.com/badlogic/pi-mono/pull/488) by [@ghoulr](https://github.com/ghoulr))
+
 ## [0.37.2] - 2026-01-05
 
 ### Fixed

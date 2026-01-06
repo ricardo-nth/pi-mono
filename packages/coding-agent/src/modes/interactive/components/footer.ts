@@ -1,8 +1,8 @@
 import type { AssistantMessage } from "@mariozechner/pi-ai";
-import { type Component, visibleWidth } from "@mariozechner/pi-tui";
+import { type Component, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 import { spawnSync } from "child_process";
-import { existsSync, type FSWatcher, readFileSync, watch } from "fs";
-import { dirname, join } from "path";
+import { existsSync, type FSWatcher, readFileSync, statSync, watch } from "fs";
+import { dirname, join, resolve } from "path";
 import type { AgentSession } from "../../../core/agent-session.js";
 import { theme } from "../theme/theme.js";
 
@@ -14,15 +14,37 @@ const ICONS = {
 };
 
 /**
- * Find the git root directory by walking up from cwd.
- * Returns the path to .git/HEAD if found, null otherwise.
+ * Find the git HEAD path by walking up from cwd.
+ * Handles both regular git repos (.git is a directory) and worktrees (.git is a file).
+ * Returns the path to the HEAD file if found, null otherwise.
  */
 function findGitHeadPath(): string | null {
 	let dir = process.cwd();
 	while (true) {
-		const gitHeadPath = join(dir, ".git", "HEAD");
-		if (existsSync(gitHeadPath)) {
-			return gitHeadPath;
+		const gitPath = join(dir, ".git");
+		if (existsSync(gitPath)) {
+			try {
+				const stat = statSync(gitPath);
+				if (stat.isFile()) {
+					// Worktree: .git is a file containing "gitdir: <path>"
+					const content = readFileSync(gitPath, "utf8").trim();
+					if (content.startsWith("gitdir: ")) {
+						const gitDir = content.slice(8);
+						const headPath = resolve(dir, gitDir, "HEAD");
+						if (existsSync(headPath)) {
+							return headPath;
+						}
+					}
+				} else if (stat.isDirectory()) {
+					// Regular repo: .git is a directory
+					const headPath = join(gitPath, "HEAD");
+					if (existsSync(headPath)) {
+						return headPath;
+					}
+				}
+			} catch {
+				return null;
+			}
 		}
 		const parent = dirname(dir);
 		if (parent === dir) {

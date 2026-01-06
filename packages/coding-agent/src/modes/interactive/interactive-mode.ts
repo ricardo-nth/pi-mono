@@ -7,7 +7,6 @@ import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import Clipboard from "@crosscopy/clipboard";
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import { type AssistantMessage, getOAuthProviders, type Message, type OAuthProvider } from "@mariozechner/pi-ai";
 import type { KeyId, SlashCommand } from "@mariozechner/pi-tui";
@@ -43,6 +42,7 @@ import { loadProjectContextFiles } from "../../core/system-prompt.js";
 import type { TruncationResult } from "../../core/tools/truncate.js";
 import { getChangelogPath, parseChangelog } from "../../utils/changelog.js";
 import { copyToClipboard } from "../../utils/clipboard.js";
+import { extensionForImageMimeType, readClipboardImage } from "../../utils/clipboard-image.js";
 import { ArminComponent } from "./components/armin.js";
 import { AssistantMessageComponent } from "./components/assistant-message.js";
 import { BashExecutionComponent } from "./components/bash-execution.js";
@@ -156,6 +156,9 @@ export class InteractiveMode {
 	// Extension widgets (components rendered above the editor)
 	private extensionWidgets = new Map<string, Component & { dispose?(): void }>();
 	private widgetContainer!: Container;
+
+	// Custom footer from extension (undefined = use built-in footer)
+	private customFooter: (Component & { dispose?(): void }) | undefined = undefined;
 
 	// Convenience accessors
 	private get agent() {
@@ -647,6 +650,35 @@ export class InteractiveMode {
 	}
 
 	/**
+	 * Set a custom footer component, or restore the built-in footer.
+	 */
+	private setExtensionFooter(factory: ((tui: TUI, thm: Theme) => Component & { dispose?(): void }) | undefined): void {
+		// Dispose existing custom footer
+		if (this.customFooter?.dispose) {
+			this.customFooter.dispose();
+		}
+
+		// Remove current footer from UI
+		if (this.customFooter) {
+			this.ui.removeChild(this.customFooter);
+		} else {
+			this.ui.removeChild(this.footer);
+		}
+
+		if (factory) {
+			// Create and add custom footer
+			this.customFooter = factory(this.ui, theme);
+			this.ui.addChild(this.customFooter);
+		} else {
+			// Restore built-in footer
+			this.customFooter = undefined;
+			this.ui.addChild(this.footer);
+		}
+
+		this.ui.requestRender();
+	}
+
+	/**
 	 * Create the ExtensionUIContext for extensions.
 	 */
 	private createExtensionUIContext(): ExtensionUIContext {
@@ -657,6 +689,7 @@ export class InteractiveMode {
 			notify: (message, type) => this.showExtensionNotify(message, type),
 			setStatus: (key, text) => this.setExtensionStatus(key, text),
 			setWidget: (key, content) => this.setExtensionWidget(key, content),
+			setFooter: (factory) => this.setExtensionFooter(factory),
 			setTitle: (title) => this.ui.terminal.setTitle(title),
 			custom: (factory) => this.showExtensionCustom(factory),
 			setEditorText: (text) => this.editor.setText(text),
@@ -924,20 +957,17 @@ export class InteractiveMode {
 
 	private async handleClipboardImagePaste(): Promise<void> {
 		try {
-			if (!Clipboard.hasImage()) {
-				return;
-			}
-
-			const imageData = await Clipboard.getImageBinary();
-			if (!imageData || imageData.length === 0) {
+			const image = await readClipboardImage();
+			if (!image) {
 				return;
 			}
 
 			// Write to temp file
 			const tmpDir = os.tmpdir();
-			const fileName = `pi-clipboard-${crypto.randomUUID()}.png`;
+			const ext = extensionForImageMimeType(image.mimeType) ?? "png";
+			const fileName = `pi-clipboard-${crypto.randomUUID()}.${ext}`;
 			const filePath = path.join(tmpDir, fileName);
-			fs.writeFileSync(filePath, Buffer.from(imageData));
+			fs.writeFileSync(filePath, Buffer.from(image.bytes));
 
 			// Insert file path directly
 			this.editor.insertTextAtCursor(filePath);
@@ -1936,6 +1966,7 @@ export class InteractiveMode {
 					autoCompact: this.session.autoCompactionEnabled,
 					showImages: this.settingsManager.getShowImages(),
 					autoResizeImages: this.settingsManager.getImageAutoResize(),
+					blockImages: this.settingsManager.getBlockImages(),
 					steeringMode: this.session.steeringMode,
 					followUpMode: this.session.followUpMode,
 					thinkingLevel: this.session.thinkingLevel,
@@ -1961,6 +1992,9 @@ export class InteractiveMode {
 					},
 					onAutoResizeImagesChange: (enabled) => {
 						this.settingsManager.setImageAutoResize(enabled);
+					},
+					onBlockImagesChange: (blocked) => {
+						this.settingsManager.setBlockImages(blocked);
 					},
 					onSteeringModeChange: (mode) => {
 						this.session.setSteeringMode(mode);
