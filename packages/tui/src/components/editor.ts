@@ -239,6 +239,7 @@ export class Editor implements Component {
 
 	public onSubmit?: (text: string) => void;
 	public onChange?: (text: string) => void;
+	public onAutocompleteChange?: (isActive: boolean) => void;
 	public disableSubmit: boolean = false;
 
 	constructor(theme: EditorTheme) {
@@ -383,12 +384,6 @@ export class Editor implements Component {
 
 		// Render bottom border
 		result.push(horizontal.repeat(width));
-
-		// Add autocomplete list if active
-		if (this.isAutocompleting && this.autocompleteList) {
-			const autocompleteResult = this.autocompleteList.render(width);
-			result.push(...autocompleteResult);
-		}
 
 		return result;
 	}
@@ -1318,6 +1313,7 @@ export class Editor implements Component {
 			this.autocompletePrefix = suggestions.prefix;
 			this.autocompleteList = new SelectList(suggestions.items, 5, this.theme.selectList);
 			this.isAutocompleting = true;
+			this.onAutocompleteChange?.(true);
 		} else {
 			this.cancelAutocomplete();
 		}
@@ -1368,19 +1364,28 @@ https://github.com/EsotericSoftware/spine-runtimes/actions/runs/19536643416/job/
 			this.autocompletePrefix = suggestions.prefix;
 			this.autocompleteList = new SelectList(suggestions.items, 5, this.theme.selectList);
 			this.isAutocompleting = true;
+			this.onAutocompleteChange?.(true);
 		} else {
 			this.cancelAutocomplete();
 		}
 	}
 
 	private cancelAutocomplete(): void {
+		const wasActive = this.isAutocompleting;
 		this.isAutocompleting = false;
 		this.autocompleteList = undefined;
 		this.autocompletePrefix = "";
+		if (wasActive) {
+			this.onAutocompleteChange?.(false);
+		}
 	}
 
 	public isShowingAutocomplete(): boolean {
 		return this.isAutocompleting;
+	}
+
+	public getAutocompleteList(): SelectList | undefined {
+		return this.autocompleteList;
 	}
 
 	private updateAutocomplete(): void {
@@ -1396,6 +1401,7 @@ https://github.com/EsotericSoftware/spine-runtimes/actions/runs/19536643416/job/
 			this.autocompletePrefix = suggestions.prefix;
 			// Always create new SelectList to ensure update
 			this.autocompleteList = new SelectList(suggestions.items, 5, this.theme.selectList);
+			this.onAutocompleteChange?.(true);
 		} else {
 			this.cancelAutocomplete();
 		}

@@ -45,6 +45,7 @@ import { copyToClipboard } from "../../utils/clipboard.js";
 import { extensionForImageMimeType, readClipboardImage } from "../../utils/clipboard-image.js";
 import { ArminComponent } from "./components/armin.js";
 import { AssistantMessageComponent } from "./components/assistant-message.js";
+import { AutocompletePopup } from "./components/autocomplete-popup.js";
 import { BashExecutionComponent } from "./components/bash-execution.js";
 import { BorderedLoader } from "./components/bordered-loader.js";
 import { BranchSummaryMessageComponent } from "./components/branch-summary-message.js";
@@ -157,6 +158,10 @@ export class InteractiveMode {
 	private extensionWidgets = new Map<string, Component & { dispose?(): void }>();
 	private widgetContainer!: Container;
 
+	// Autocomplete popup (rendered above the editor)
+	private autocompleteContainer!: Container;
+	private autocompletePopup!: AutocompletePopup;
+
 	// Custom footer from extension (undefined = use built-in footer)
 	private customFooter: (Component & { dispose?(): void }) | undefined = undefined;
 
@@ -187,6 +192,8 @@ export class InteractiveMode {
 		this.pendingMessagesContainer = new Container();
 		this.statusContainer = new Container();
 		this.widgetContainer = new Container();
+		this.autocompleteContainer = new Container();
+		this.autocompletePopup = new AutocompletePopup();
 		this.keybindings = KeybindingsManager.create();
 		this.editor = new CustomEditor(getEditorTheme(), this.keybindings);
 		this.editorContainer = new Container();
@@ -346,9 +353,25 @@ export class InteractiveMode {
 		this.ui.addChild(this.statusContainer);
 		this.ui.addChild(this.widgetContainer);
 		this.ui.addChild(new Spacer(1));
+		this.ui.addChild(this.autocompleteContainer);
 		this.ui.addChild(this.editorContainer);
 		this.ui.addChild(this.footer);
 		this.ui.setFocus(this.editor);
+
+		// Wire up autocomplete rendering above the editor
+		this.editor.onAutocompleteChange = (isActive) => {
+			if (isActive) {
+				this.autocompletePopup.setSelectList(this.editor.getAutocompleteList());
+				// Only add to container if not already there
+				if (this.autocompleteContainer.children.length === 0) {
+					this.autocompleteContainer.addChild(this.autocompletePopup);
+				}
+			} else {
+				this.autocompleteContainer.clear();
+				this.autocompletePopup.setSelectList(undefined);
+			}
+			this.ui.requestRender();
+		};
 
 		this.setupKeyHandlers();
 		this.setupEditorSubmitHandler();
