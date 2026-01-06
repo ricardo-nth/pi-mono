@@ -2,6 +2,8 @@
 
 This is a personal fork of [badlogic/pi-mono](https://github.com/badlogic/pi-mono) with custom UI improvements.
 
+**Fork:** https://github.com/ricardo-nth/pi-mono
+
 ## Quick Reference
 
 | Command | Description |
@@ -95,7 +97,7 @@ Go to https://github.com/badlogic/pi-mono → Fork
 
 ### 2. Clone and Configure Remotes
 ```bash
-git clone https://github.com/YOUR_USERNAME/pi-mono.git
+git clone https://github.com/ricardo-nth/pi-mono.git
 cd pi-mono
 git remote add upstream https://github.com/badlogic/pi-mono.git
 ```
