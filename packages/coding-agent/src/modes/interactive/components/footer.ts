@@ -119,8 +119,9 @@ export class FooterComponent implements Component {
 	private cachedBranch: string | null | undefined = undefined;
 	private gitWatcher: FSWatcher | null = null;
 	private onBranchChange: (() => void) | null = null;
-	private autoCompactEnabled: boolean = true;
-	private extensionStatuses: Map<string, string> = new Map();
+	// Kept for API compatibility - may be used by extensions
+	private _autoCompactEnabled: boolean = true;
+	private _extensionStatuses: Map<string, string> = new Map();
 	private cachedTimeSinceCommit: string | null = null;
 	private lastCommitCheck: number = 0;
 
@@ -129,14 +130,14 @@ export class FooterComponent implements Component {
 	}
 
 	setAutoCompactEnabled(enabled: boolean): void {
-		this.autoCompactEnabled = enabled;
+		this._autoCompactEnabled = enabled;
 	}
 
 	setExtensionStatus(key: string, text: string | undefined): void {
 		if (text === undefined) {
-			this.extensionStatuses.delete(key);
+			this._extensionStatuses.delete(key);
 		} else {
-			this.extensionStatuses.set(key, text);
+			this._extensionStatuses.set(key, text);
 		}
 	}
 
