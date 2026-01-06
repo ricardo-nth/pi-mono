@@ -72,9 +72,8 @@ export class HotkeysPopupComponent extends Container {
 		this.col1.push({ type: "hotkey", key: editorKeyDisplay("submit"), action: "Send" });
 		this.col1.push({ type: "hotkey", key: editorKeyDisplay("newLine"), action: "New line" });
 		this.col1.push({ type: "hotkey", key: editorKeyDisplay("deleteWordBackward"), action: "Delete word" });
-		this.col1.push({ type: "hotkey", key: "Ctrl+K", action: "Delete line" });
+		this.col1.push({ type: "hotkey", key: "Ctrl+K", action: "Del to end" });
 		this.col1.push({ type: "hotkey", key: editorKeyDisplay("deleteToLineStart"), action: "Del to start" });
-		this.col1.push({ type: "hotkey", key: editorKeyDisplay("deleteToLineEnd"), action: "Del to end" });
 
 		// COLUMN 2: Controls + Model
 		this.col2.push({ type: "header", category: "Controls" });
