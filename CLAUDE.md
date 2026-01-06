@@ -21,6 +21,43 @@ When syncing upstream, Mario's functional improvements flow in. Our changes are 
 
 ---
 
+## Extension-First Strategy
+
+**Before modifying core files, check if the feature can be an extension.**
+
+Pi has a powerful extension system. Extensions survive upstream merges without conflicts and can be shared independently.
+
+### Decision Flow
+
+1. Read `knowledge/extensions.md` for available APIs
+2. If extension-capable → implement as extension in `~/.pi/agent/extensions/`
+3. If core change required → accept merge conflict risk, keep changes minimal
+
+### What Can Be Extensions
+
+| Feature Type | Extension API | Example |
+|--------------|---------------|---------|
+| Custom footer | `ctx.ui.setFooter()` | Token stats, cost display |
+| Status indicators | `ctx.ui.setStatus()` | Turn counters, progress |
+| Welcome screens | `session_start` hook | ASCII art, custom splash |
+| Command palettes | `ctx.ui.custom()` | Full-screen selectors |
+| System prompt mods | `before_agent_start` | Custom instructions |
+
+### What Needs Core Changes
+
+- Model selector modifications (no hook)
+- Input/editor behavior (no hook)
+- True floating overlays (TUI limitation)
+
+### Backlog Ideas
+
+All ideas in `po/backlog/` now have an `implementation` field:
+- `extension` - Use extension API, no core changes
+- `core` - Must modify source files
+- `hybrid` - Some parts extension, some core
+
+---
+
 ## Monorepo Structure
 
 This is a monorepo with multiple packages. The `coding-agent` is what we use, but it depends on several other packages.
@@ -152,7 +189,13 @@ git push origin main
 | File | Purpose |
 |------|---------|
 | `~/.pi/agent/settings.json` | Model filters, theme, defaults |
+| `~/.pi/agent/models.json` | Custom models and provider overrides |
+| `~/.pi/agent/auth.json` | API keys and OAuth tokens |
 | `~/.local/bin/po` | Your custom command script |
+
+**Note:** To change which models are shown or configure provider APIs, edit files in `~/.pi/agent/`:
+- `settings.json` - Model filters (`hidden`, `hiddenProviders` patterns)
+- `models.json` - Custom providers, model definitions, API overrides
 
 ### Key Directories for UI Work
 | Directory | What's There |

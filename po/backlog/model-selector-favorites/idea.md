@@ -1,6 +1,7 @@
 ---
 title: Favorite Models
 area: model-selector
+implementation: core
 effort: medium
 impact: high
 risk: low
@@ -8,6 +9,7 @@ status: idea
 files:
   - packages/coding-agent/src/modes/interactive/components/model-selector.ts
   - packages/coding-agent/src/core/settings-manager.ts
+extensionApi: null
 created: 2025-01-06
 ---
 

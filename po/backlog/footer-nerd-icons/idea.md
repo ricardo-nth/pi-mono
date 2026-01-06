@@ -1,12 +1,13 @@
 ---
 title: Nerd Font Folder Icons
 area: footer
+implementation: extension
 effort: low
 impact: low
 risk: low
 status: idea
-files:
-  - packages/coding-agent/src/modes/interactive/components/footer.ts
+files: []
+extensionApi: ctx.ui.setFooter()
 created: 2025-01-06
 ---
 

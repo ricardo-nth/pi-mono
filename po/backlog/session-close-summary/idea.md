@@ -1,13 +1,13 @@
 ---
 title: Session Close Summary
 area: global
-effort: high
+implementation: extension
+effort: medium
 impact: high
-risk: medium
+risk: low
 status: idea
-files:
-  - packages/coding-agent/src/modes/interactive/interactive-mode.ts
-  - packages/coding-agent/src/core/agent-session.ts
+files: []
+extensionApi: session_end hook (if exists), ctx.ui.custom()
 created: 2025-01-06
 ---
 

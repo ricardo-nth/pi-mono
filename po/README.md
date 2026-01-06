@@ -23,14 +23,26 @@ Custom UI work for the Pi fork.
 ---
 title: Feature Name
 area: footer | model-selector | input | header | global
+implementation: extension | core | hybrid
 effort: low | medium | high
 impact: low | medium | high
 risk: low | medium | high
 status: idea | ready | active | done
 files: []
+extensionApi: ctx.ui.setFooter() | null | etc.
 created: YYYY-MM-DD
 ---
 ```
+
+### Implementation Types
+
+| Type | Meaning | Merge Risk |
+|------|---------|------------|
+| `extension` | Use Pi extension API only | None |
+| `core` | Must modify source files | High |
+| `hybrid` | Some extension, some core | Medium |
+
+See `knowledge/extensions.md` for available extension APIs.
 
 ## Skills
 

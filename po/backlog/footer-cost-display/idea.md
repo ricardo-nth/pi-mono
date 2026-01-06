@@ -1,13 +1,13 @@
 ---
 title: Cost Display Toggle
 area: footer
-effort: medium
+implementation: extension
+effort: low
 impact: low
-risk: medium
+risk: low
 status: idea
-files:
-  - packages/coding-agent/src/modes/interactive/components/footer.ts
-  - packages/coding-agent/src/core/settings-manager.ts
+files: []
+extensionApi: ctx.ui.setFooter()
 created: 2025-01-06
 ---
 

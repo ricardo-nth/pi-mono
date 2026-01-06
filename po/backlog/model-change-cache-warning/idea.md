@@ -1,6 +1,7 @@
 ---
 title: Model Change Cache Warning
 area: model-selector
+implementation: core
 effort: medium
 impact: medium
 risk: medium
@@ -8,6 +9,7 @@ status: idea
 files:
   - packages/coding-agent/src/modes/interactive/components/model-selector.ts
   - packages/coding-agent/src/modes/interactive/interactive-mode.ts
+extensionApi: null
 created: 2025-01-06
 ---
 

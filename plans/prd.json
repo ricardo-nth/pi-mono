@@ -1,0 +1,77 @@
+{
+  "name": "Status Changes in Footer Only",
+  "goal": "Remove status messages from chat buffer when switching models or changing thinking levels - let the footer reflect these changes silently",
+
+  "global_verification": {
+    "build": "npm run build",
+    "types": "cd packages/coding-agent && npx tsgo --noEmit"
+  },
+
+  "features": [
+    {
+      "id": "F001",
+      "description": "Remove showStatus call for model switching",
+      "priority": "high",
+      "category": "functional",
+      "verification": {
+        "type": "visual",
+        "tool": "manual",
+        "steps": [
+          "Run po",
+          "Press Ctrl+L to open model selector",
+          "Select a different model",
+          "Verify NO 'Switched to X' message appears in chat",
+          "Verify footer shows new model name"
+        ]
+      },
+      "file": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+      "line": 1722,
+      "passes": true
+    },
+    {
+      "id": "F002",
+      "description": "Remove showStatus call for thinking level cycling",
+      "priority": "high",
+      "category": "functional",
+      "verification": {
+        "type": "visual",
+        "tool": "manual",
+        "steps": [
+          "Run po with a thinking-capable model",
+          "Press Shift+Tab to cycle thinking level",
+          "Verify NO 'Thinking level: X' message appears in chat",
+          "Verify footer shows new thinking level (e.g., 'claude-opus-4-5 • medium')"
+        ]
+      },
+      "file": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+      "line": 1707,
+      "passes": true
+    },
+    {
+      "id": "F003",
+      "description": "Remove showStatus call for thinking block visibility toggle",
+      "priority": "medium",
+      "category": "functional",
+      "verification": {
+        "type": "visual",
+        "tool": "manual",
+        "steps": [
+          "Run po",
+          "Press Ctrl+T to toggle thinking visibility",
+          "Verify NO 'Thinking blocks: hidden/visible' message appears in chat"
+        ]
+      },
+      "file": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+      "line": 1754,
+      "passes": true
+    }
+  ],
+
+  "constraints": [
+    "Only remove showStatus calls for model/thinking changes",
+    "Keep other showStatus calls intact (errors, navigation, etc.)",
+    "Footer already updates automatically - no changes needed there"
+  ],
+
+  "completion_promise": "COMPLETE"
+}
