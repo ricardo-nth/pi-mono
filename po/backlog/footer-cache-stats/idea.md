@@ -1,12 +1,14 @@
 ---
 title: Cache Stats Display
-category: footer
-type: functional
-complexity: medium
+area: footer
+effort: medium
+impact: low
+risk: medium
+status: idea
 files:
   - packages/coding-agent/src/modes/interactive/components/footer.ts
   - packages/coding-agent/src/core/settings-manager.ts
-status: idea
+created: 2025-01-06
 ---
 
 # Cache Stats Display
@@ -45,6 +47,6 @@ coding-agent  R3.8k W17k  ████░░░░ 12%
 ## Notes
 
 - Cache stats most useful at session close, not during use
-- Consider showing only on session close instead (see session-close-summary.md)
+- Consider showing only on session close instead (see session-close-summary)
 - Low priority for always-visible display
 - R = cache read, W = cache write

@@ -1,12 +1,14 @@
 ---
 title: Session Close Summary
-category: session
-type: functional
-complexity: high
+area: global
+effort: high
+impact: high
+risk: medium
+status: idea
 files:
   - packages/coding-agent/src/modes/interactive/interactive-mode.ts
   - packages/coding-agent/src/core/agent-session.ts
-status: idea
+created: 2025-01-06
 ---
 
 # Session Close Summary

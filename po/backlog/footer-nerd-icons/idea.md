@@ -1,11 +1,13 @@
 ---
 title: Nerd Font Folder Icons
-category: footer
-type: ui-only
-complexity: low
+area: footer
+effort: low
+impact: low
+risk: low
+status: idea
 files:
   - packages/coding-agent/src/modes/interactive/components/footer.ts
-status: idea
+created: 2025-01-06
 ---
 
 # Nerd Font Folder Icons

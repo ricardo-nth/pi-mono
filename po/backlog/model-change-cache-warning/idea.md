@@ -1,12 +1,14 @@
 ---
 title: Model Change Cache Warning
-category: model-selector
-type: functional
-complexity: medium
+area: model-selector
+effort: medium
+impact: medium
+risk: medium
+status: idea
 files:
   - packages/coding-agent/src/modes/interactive/components/model-selector.ts
   - packages/coding-agent/src/modes/interactive/interactive-mode.ts
-status: idea
+created: 2025-01-06
 ---
 
 # Model Change Cache Warning

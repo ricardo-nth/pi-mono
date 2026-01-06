@@ -1,12 +1,14 @@
 ---
 title: Cost Display Toggle
-category: footer
-type: functional
-complexity: medium
+area: footer
+effort: medium
+impact: low
+risk: medium
+status: idea
 files:
   - packages/coding-agent/src/modes/interactive/components/footer.ts
   - packages/coding-agent/src/core/settings-manager.ts
-status: idea
+created: 2025-01-06
 ---
 
 # Cost Display Toggle

@@ -1,12 +1,14 @@
 ---
 title: Favorite Models
-category: model-selector
-type: ui-only
-complexity: medium
+area: model-selector
+effort: medium
+impact: high
+risk: low
+status: idea
 files:
   - packages/coding-agent/src/modes/interactive/components/model-selector.ts
   - packages/coding-agent/src/core/settings-manager.ts
-status: idea
+created: 2025-01-06
 ---
 
 # Favorite Models

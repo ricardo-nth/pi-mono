@@ -1,11 +1,13 @@
 ---
 title: Collapsible Provider Sections
-category: model-selector
-type: ui-only
-complexity: medium
+area: model-selector
+effort: medium
+impact: medium
+risk: low
+status: idea
 files:
   - packages/coding-agent/src/modes/interactive/components/model-selector.ts
-status: idea
+created: 2025-01-06
 ---
 
 # Collapsible Provider Sections

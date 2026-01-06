@@ -163,11 +163,27 @@ git push origin main
 
 ---
 
-## Backlog
+## PO Project Structure
 
-Ideas for future changes live in [`/backlog`](./backlog/README.md).
+All custom work is organized in [`/po`](./po/README.md):
 
-Each idea has its own file with front matter (category, complexity, type, files affected). Check the index for a quick overview before diving into individual files.
+```
+po/
+├── backlog/     # Ideas waiting to be worked on
+├── active/      # Currently in progress
+└── done/        # Completed features
+```
+
+Each feature is a folder with `idea.md` (front matter + description) and optional `assets/`.
+
+### Skills
+
+| Skill | What it does |
+|-------|--------------|
+| `/save-idea` | Capture an idea to backlog |
+| `/backlog` | List ideas with computed priorities |
+| `/start-feature` | Promote idea to active, generate PRD |
+| `/park` | Move active feature back to backlog |
 
 ---
 
