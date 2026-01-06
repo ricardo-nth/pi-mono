@@ -1,15 +1,23 @@
 # Pi Mono - Custom Fork
 
-Personal fork of [badlogic/pi-mono](https://github.com/badlogic/pi-mono) with UI improvements for the coding agent.
+Personal fork of [badlogic/pi-mono](https://github.com/badlogic/pi-mono) with opinionated UI tweaks.
 
 **Fork:** https://github.com/ricardo-nth/pi-mono
 **Upstream:** https://github.com/badlogic/pi-mono
 
-## Scope of This Fork
+## What This Is (And Isn't)
 
-**UI changes only** - No functional code modifications. Focus is on making the coding agent more pleasant to use visually. System prompt and core logic remain untouched.
+This is **not** an improvement. It's just how I like things to look.
 
-When syncing upstream, functional improvements come from Mario's repo. Our changes layer on top as UI polish.
+I'm not a UI designer. These are personal preferences - opinionated layouts that suit my workflow. Mario's original UI is perfectly fine; I just have opinions about model selectors and spacing. You know how it is.
+
+**The rules:**
+- No touching the actual agent logic, system prompts, or core functionality
+- UI/layout changes only - shuffling pixels around
+- Supporting code (settings, types) may be adjusted *if needed* for UI work
+- When in doubt, it's a visual thing, not a functional thing
+
+When syncing upstream, Mario's functional improvements flow in. Our changes are just cosmetic layers on top - lipstick on a very capable pig.
 
 ---
 
@@ -59,12 +67,12 @@ coding-agent (po command)
 
 ---
 
-## Custom UI Changes
+## What's Been Fiddled With
 
-### Model Selector Improvements
-- **Grouped by provider** - Models organized under provider headers
-- **Hidden model filters** - Filter out legacy/unused models
-- **Cleaner display** - No `[provider]` badges, spacing between groups
+### Model Selector (the thing that bugged me most)
+- **Grouped by provider** - Because scrolling through 93 flat items was giving me anxiety
+- **Hidden model filters** - I don't need to see Claude 3 Haiku from 2024, thanks
+- **Removed `[provider]` badges** - If it's under "Anthropic", I know it's Anthropic
 
 ### Settings: `~/.pi/agent/settings.json`
 ```json
@@ -155,7 +163,9 @@ git push origin main
 
 ---
 
-## Future UI Ideas
+## Things That Might Get Fiddled With Later
+
+No promises. These are just ideas that might happen if I get bored:
 
 - [ ] Collapsible provider sections
 - [ ] Favorite models pinned to top
@@ -163,7 +173,9 @@ git push origin main
 - [ ] Quick switch between recent models (Ctrl+R?)
 - [ ] Custom model aliases/nicknames
 - [ ] Better thinking level indicator
-- [ ] Session list improvements
+- [ ] Session list tweaks
+
+Or maybe none of these. Who knows.
 
 ---
 
