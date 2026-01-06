@@ -165,59 +165,9 @@ git push origin main
 
 ## Backlog
 
-Ideas that might happen. Organised by whether they're UI-only or require functional changes.
+Ideas for future changes live in [`/backlog`](./backlog/README.md).
 
-### UI Tweaks (Safe to Do)
-
-**Model Selector:**
-- [ ] Collapsible provider sections
-- [ ] Favorite models pinned to top
-- [ ] Model cost/speed indicators
-- [ ] Custom model aliases/nicknames
-
-**Footer:**
-- [ ] Nerd font folder icons (stored for later: ``, ``, `󰈙`, `󰲋`)
-- [ ] Settings toggle for showing/hiding stats (cache, cost, input/output)
-
-### Functional Changes (Touch With Care)
-
-These require changes beyond UI. Proceed carefully, test thoroughly.
-
-**Session Close Experience (like Codex):**
-- [ ] Ctrl+C shows "press again to close" confirmation
-- [ ] On close: show resume command (`po --resume <session-id>`)
-- [ ] On close: show session summary (total input, output, cached tokens)
-- [ ] On close: show cache stats (useful to see what you lose)
-
-**Model Change Notifications:**
-- [ ] When changing models, show cache invalidation warning
-- [ ] Display "Cache used: X tokens" before switching providers
-
-**Cache Stats Display:**
-- [ ] Optional cache stats in footer (setting: `showCacheStats: true`)
-- [ ] Useful for debugging (e.g., OAuth cache issues)
-- [ ] Show on session close rather than during use
-
-**Cost Tracking:**
-- [ ] Optional cost display (setting: `showCost: true`)
-- [ ] Requires model pricing data in provider settings
-
-### Icons Reference
-
-Nerd font icons collected for potential future use:
-```
-Folders:    󰉋 (current)   (alt)  󰈙 (documents)  󰲋 (projects)
-Git:         (branch)   (current)
-Clock:       (time)
-Node:        (for path truncation indicator)
-```
-
-### Notes
-
-- Cache stats are most useful at session close, not during use
-- When changing providers, cache is invalidated - worth notifying
-- Input/output token counts aren't personally useful for decision-making
-- Cost tracking needs model pricing data to be meaningful
+Each idea has its own file with front matter (category, complexity, type, files affected). Check the index for a quick overview before diving into individual files.
 
 ---
 
