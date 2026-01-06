@@ -1,5 +1,6 @@
 import { type Model, modelsAreEqual } from "@mariozechner/pi-ai";
 import { Container, getEditorKeybindings, Input, Spacer, Text, type TUI } from "@mariozechner/pi-tui";
+import { minimatch } from "minimatch";
 import type { ModelRegistry } from "../../../core/model-registry.js";
 import type { SettingsManager } from "../../../core/settings-manager.js";
 import { fuzzyFilter } from "../../../utils/fuzzy.js";
@@ -17,15 +18,23 @@ interface ScopedModelItem {
 	thinkingLevel: string;
 }
 
+/** Display item can be either a provider header or a selectable model */
+interface DisplayItem {
+	type: "header" | "model";
+	provider: string;
+	modelItem?: ModelItem;
+}
+
 /**
- * Component that renders a model selector with search
+ * Component that renders a model selector with search, grouped by provider
  */
 export class ModelSelectorComponent extends Container {
 	private searchInput: Input;
 	private listContainer: Container;
 	private allModels: ModelItem[] = [];
 	private filteredModels: ModelItem[] = [];
-	private selectedIndex: number = 0;
+	private displayItems: DisplayItem[] = [];
+	private selectedIndex: number = 0; // Index into displayItems (only counts selectable items)
 	private currentModel?: Model<any>;
 	private settingsManager: SettingsManager;
 	private modelRegistry: ModelRegistry;
@@ -69,9 +78,10 @@ export class ModelSelectorComponent extends Container {
 		// Create search input
 		this.searchInput = new Input();
 		this.searchInput.onSubmit = () => {
-			// Enter on search input selects the first filtered item
-			if (this.filteredModels[this.selectedIndex]) {
-				this.handleSelect(this.filteredModels[this.selectedIndex].model);
+			// Enter on search input selects the current item
+			const selectedModel = this.getSelectedModel();
+			if (selectedModel) {
+				this.handleSelect(selectedModel);
 			}
 		};
 		this.addChild(this.searchInput);
@@ -131,98 +141,200 @@ export class ModelSelectorComponent extends Container {
 			}
 		}
 
-		// Sort: current model first, then by provider
+		// Apply model filters from settings
+		models = this.applyModelFilters(models);
+
+		// Sort: current model's provider first, then alphabetically by provider, then by model id
 		models.sort((a, b) => {
 			const aIsCurrent = modelsAreEqual(this.currentModel, a.model);
 			const bIsCurrent = modelsAreEqual(this.currentModel, b.model);
 			if (aIsCurrent && !bIsCurrent) return -1;
 			if (!aIsCurrent && bIsCurrent) return 1;
-			return a.provider.localeCompare(b.provider);
+
+			// Group by provider first
+			const providerCompare = a.provider.localeCompare(b.provider);
+			if (providerCompare !== 0) return providerCompare;
+
+			// Within provider, sort by model id
+			return a.id.localeCompare(b.id);
 		});
 
 		this.allModels = models;
 		this.filteredModels = models;
-		this.selectedIndex = Math.min(this.selectedIndex, Math.max(0, models.length - 1));
+		this.buildDisplayItems();
+		this.selectedIndex = 0;
+	}
+
+	/** Apply hidden model and provider filters from settings */
+	private applyModelFilters(models: ModelItem[]): ModelItem[] {
+		const filters = this.settingsManager.getModelFilters();
+		const hiddenPatterns = filters.hidden ?? [];
+		const hiddenProviders = filters.hiddenProviders ?? [];
+
+		return models.filter((item) => {
+			// Check if provider is hidden
+			if (hiddenProviders.includes(item.provider)) {
+				return false;
+			}
+
+			// Check if model matches any hidden pattern
+			for (const pattern of hiddenPatterns) {
+				if (minimatch(item.id, pattern, { nocase: true })) {
+					return false;
+				}
+			}
+
+			return true;
+		});
+	}
+
+	/** Build display items with provider headers */
+	private buildDisplayItems(): void {
+		this.displayItems = [];
+
+		// Group models by provider
+		const groups = new Map<string, ModelItem[]>();
+		for (const item of this.filteredModels) {
+			const existing = groups.get(item.provider) ?? [];
+			existing.push(item);
+			groups.set(item.provider, existing);
+		}
+
+		// Build display items with headers
+		for (const [provider, items] of groups) {
+			// Add provider header
+			this.displayItems.push({ type: "header", provider });
+
+			// Add models under this provider
+			for (const item of items) {
+				this.displayItems.push({ type: "model", provider, modelItem: item });
+			}
+		}
+	}
+
+	/** Get all selectable (non-header) indices */
+	private getSelectableIndices(): number[] {
+		const indices: number[] = [];
+		for (let i = 0; i < this.displayItems.length; i++) {
+			if (this.displayItems[i].type === "model") {
+				indices.push(i);
+			}
+		}
+		return indices;
+	}
+
+	/** Get the currently selected model */
+	private getSelectedModel(): Model<any> | undefined {
+		const selectableIndices = this.getSelectableIndices();
+		const displayIndex = selectableIndices[this.selectedIndex];
+		const item = this.displayItems[displayIndex];
+		return item?.modelItem?.model;
 	}
 
 	private filterModels(query: string): void {
-		this.filteredModels = fuzzyFilter(this.allModels, query, ({ id, provider }) => `${id} ${provider}`);
-		this.selectedIndex = Math.min(this.selectedIndex, Math.max(0, this.filteredModels.length - 1));
+		if (query.trim() === "") {
+			this.filteredModels = this.allModels;
+		} else {
+			this.filteredModels = fuzzyFilter(this.allModels, query, ({ id, provider }) => `${id} ${provider}`);
+		}
+		this.buildDisplayItems();
+		this.selectedIndex = Math.min(this.selectedIndex, Math.max(0, this.getSelectableIndices().length - 1));
 		this.updateList();
 	}
 
 	private updateList(): void {
 		this.listContainer.clear();
 
-		const maxVisible = 10;
-		const startIndex = Math.max(
-			0,
-			Math.min(this.selectedIndex - Math.floor(maxVisible / 2), this.filteredModels.length - maxVisible),
-		);
-		const endIndex = Math.min(startIndex + maxVisible, this.filteredModels.length);
+		const selectableIndices = this.getSelectableIndices();
+		if (selectableIndices.length === 0) {
+			if (this.errorMessage) {
+				const errorLines = this.errorMessage.split("\n");
+				for (const line of errorLines) {
+					this.listContainer.addChild(new Text(theme.fg("error", line), 0, 0));
+				}
+			} else {
+				this.listContainer.addChild(new Text(theme.fg("muted", "  No matching models"), 0, 0));
+			}
+			return;
+		}
 
-		// Show visible slice of filtered models
+		// Calculate visible window based on selected model position
+		const maxVisible = 12;
+		const selectedDisplayIndex = selectableIndices[this.selectedIndex] ?? 0;
+
+		// Find a window of display items that includes the selected item
+		let startIndex = Math.max(0, selectedDisplayIndex - Math.floor(maxVisible / 2));
+		const endIndex = Math.min(startIndex + maxVisible, this.displayItems.length);
+
+		// Adjust if we're near the end
+		if (endIndex - startIndex < maxVisible && startIndex > 0) {
+			startIndex = Math.max(0, endIndex - maxVisible);
+		}
+
+		// Render visible items
 		for (let i = startIndex; i < endIndex; i++) {
-			const item = this.filteredModels[i];
+			const item = this.displayItems[i];
 			if (!item) continue;
 
-			const isSelected = i === this.selectedIndex;
-			const isCurrent = modelsAreEqual(this.currentModel, item.model);
+			if (item.type === "header") {
+				// Add blank line before header if there's a previous item (separates provider groups)
+				const prevItem = this.displayItems[i - 1];
+				if (prevItem && prevItem.type === "model") {
+					this.listContainer.addChild(new Spacer(1));
+				}
+				// Render provider header with accent color
+				const headerLine = theme.fg("accent", `${item.provider}`);
+				this.listContainer.addChild(new Text(headerLine, 0, 0));
+			} else if (item.modelItem) {
+				// Find if this is the selected model
+				const modelSelectableIndex = selectableIndices.indexOf(i);
+				const isSelected = modelSelectableIndex === this.selectedIndex;
+				const isCurrent = modelsAreEqual(this.currentModel, item.modelItem.model);
 
-			let line = "";
-			if (isSelected) {
-				const prefix = theme.fg("accent", "→ ");
-				const modelText = `${item.id}`;
-				const providerBadge = theme.fg("muted", `[${item.provider}]`);
-				const checkmark = isCurrent ? theme.fg("success", " ✓") : "";
-				line = `${prefix + theme.fg("accent", modelText)} ${providerBadge}${checkmark}`;
-			} else {
-				const modelText = `  ${item.id}`;
-				const providerBadge = theme.fg("muted", `[${item.provider}]`);
-				const checkmark = isCurrent ? theme.fg("success", " ✓") : "";
-				line = `${modelText} ${providerBadge}${checkmark}`;
+				let line = "";
+				if (isSelected) {
+					const prefix = theme.fg("accent", "→ ");
+					const modelText = theme.fg("accent", item.modelItem.id);
+					const checkmark = isCurrent ? theme.fg("success", " ✓") : "";
+					line = `${prefix}${modelText}${checkmark}`;
+				} else {
+					const modelText = `  ${item.modelItem.id}`;
+					const checkmark = isCurrent ? theme.fg("success", " ✓") : "";
+					line = `${modelText}${checkmark}`;
+				}
+
+				this.listContainer.addChild(new Text(line, 0, 0));
 			}
-
-			this.listContainer.addChild(new Text(line, 0, 0));
 		}
 
 		// Add scroll indicator if needed
-		if (startIndex > 0 || endIndex < this.filteredModels.length) {
-			const scrollInfo = theme.fg("muted", `  (${this.selectedIndex + 1}/${this.filteredModels.length})`);
+		if (startIndex > 0 || endIndex < this.displayItems.length) {
+			const scrollInfo = theme.fg("muted", `  (${this.selectedIndex + 1}/${selectableIndices.length})`);
 			this.listContainer.addChild(new Text(scrollInfo, 0, 0));
-		}
-
-		// Show error message or "no results" if empty
-		if (this.errorMessage) {
-			// Show error in red
-			const errorLines = this.errorMessage.split("\n");
-			for (const line of errorLines) {
-				this.listContainer.addChild(new Text(theme.fg("error", line), 0, 0));
-			}
-		} else if (this.filteredModels.length === 0) {
-			this.listContainer.addChild(new Text(theme.fg("muted", "  No matching models"), 0, 0));
 		}
 	}
 
 	handleInput(keyData: string): void {
 		const kb = getEditorKeybindings();
-		// Up arrow - wrap to bottom when at top
+		const selectableIndices = this.getSelectableIndices();
+
+		// Up arrow - move to previous selectable item, wrap to bottom
 		if (kb.matches(keyData, "selectUp")) {
-			if (this.filteredModels.length === 0) return;
-			this.selectedIndex = this.selectedIndex === 0 ? this.filteredModels.length - 1 : this.selectedIndex - 1;
+			if (selectableIndices.length === 0) return;
+			this.selectedIndex = this.selectedIndex === 0 ? selectableIndices.length - 1 : this.selectedIndex - 1;
 			this.updateList();
 		}
-		// Down arrow - wrap to top when at bottom
+		// Down arrow - move to next selectable item, wrap to top
 		else if (kb.matches(keyData, "selectDown")) {
-			if (this.filteredModels.length === 0) return;
-			this.selectedIndex = this.selectedIndex === this.filteredModels.length - 1 ? 0 : this.selectedIndex + 1;
+			if (selectableIndices.length === 0) return;
+			this.selectedIndex = this.selectedIndex === selectableIndices.length - 1 ? 0 : this.selectedIndex + 1;
 			this.updateList();
 		}
 		// Enter
 		else if (kb.matches(keyData, "selectConfirm")) {
-			const selectedModel = this.filteredModels[this.selectedIndex];
+			const selectedModel = this.getSelectedModel();
 			if (selectedModel) {
-				this.handleSelect(selectedModel.model);
+				this.handleSelect(selectedModel);
 			}
 		}
 		// Escape or Ctrl+C

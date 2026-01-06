@@ -38,6 +38,11 @@ export interface ImageSettings {
 	autoResize?: boolean; // default: true (resize images to 2000x2000 max for better model compatibility)
 }
 
+export interface ModelFiltersSettings {
+	hidden?: string[]; // Glob patterns to hide from model selector (e.g., ["claude-3-*", "grok-*-preview"])
+	hiddenProviders?: string[]; // Hide entire providers from model selector (e.g., ["cerebras", "groq"])
+}
+
 export interface Settings {
 	lastChangelogVersion?: string;
 	defaultProvider?: string;
@@ -58,6 +63,7 @@ export interface Settings {
 	images?: ImageSettings;
 	enabledModels?: string[]; // Model patterns for cycling (same format as --models CLI flag)
 	doubleEscapeAction?: "branch" | "tree"; // Action for double-escape with empty editor (default: "tree")
+	modelFilters?: ModelFiltersSettings; // Filter models from selector UI
 }
 
 /** Deep merge settings: project/overrides take precedence, nested objects merge recursively */
@@ -408,6 +414,29 @@ export class SettingsManager {
 
 	setDoubleEscapeAction(action: "branch" | "tree"): void {
 		this.globalSettings.doubleEscapeAction = action;
+		this.save();
+	}
+
+	getModelFilters(): ModelFiltersSettings {
+		return {
+			hidden: [...(this.settings.modelFilters?.hidden ?? [])],
+			hiddenProviders: [...(this.settings.modelFilters?.hiddenProviders ?? [])],
+		};
+	}
+
+	setHiddenModels(patterns: string[]): void {
+		if (!this.globalSettings.modelFilters) {
+			this.globalSettings.modelFilters = {};
+		}
+		this.globalSettings.modelFilters.hidden = patterns;
+		this.save();
+	}
+
+	setHiddenProviders(providers: string[]): void {
+		if (!this.globalSettings.modelFilters) {
+			this.globalSettings.modelFilters = {};
+		}
+		this.globalSettings.modelFilters.hiddenProviders = providers;
 		this.save();
 	}
 }
