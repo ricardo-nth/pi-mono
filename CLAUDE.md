@@ -58,6 +58,16 @@ All ideas in `po/backlog/` now have an `implementation` field:
 
 ---
 
+## Working Directory
+
+**We work exclusively in `packages/coding-agent/`** - that's the CLI agent we customize.
+
+The root-level custom folders (`po/`, `knowledge/`, `plans/`) are ours and may cause merge conflicts when syncing upstream. The upstream repo doesn't have these, so conflicts are just "accept ours".
+
+Other packages (`tui`, `ai`, `agent`) are dependencies we don't modify - upstream changes flow in cleanly.
+
+---
+
 ## Monorepo Structure
 
 This is a monorepo with multiple packages. The `coding-agent` is what we use, but it depends on several other packages.
@@ -147,6 +157,13 @@ po          # Your build
 pi          # Official (for comparison)
 ```
 
+**DO NOT run `npm test`** - The full test suite makes API calls and is extremely CPU-intensive. It will overheat laptops and has caused system crashes. Just build and test manually with `po`.
+
+If you need to run tests, do it per-package:
+```bash
+cd packages/coding-agent && npm test  # Only if needed
+```
+
 ---
 
 ## Syncing with Upstream
@@ -185,13 +202,21 @@ git push origin main
 | `packages/coding-agent/src/modes/interactive/components/model-selector.ts` | Grouped display, filtering |
 | `packages/coding-agent/src/core/settings-manager.ts` | modelFilters settings |
 
-### User Config
+### User Config (in `~/.pi/agent/`)
 | File | Purpose |
 |------|---------|
-| `~/.pi/agent/settings.json` | Model filters, theme, defaults |
-| `~/.pi/agent/models.json` | Custom models and provider overrides |
-| `~/.pi/agent/auth.json` | API keys and OAuth tokens |
-| `~/.local/bin/po` | Your custom command script |
+| `settings.json` | Model filters, theme, defaults |
+| `models.json` | Custom models and provider overrides |
+| `auth.json` | API keys and OAuth tokens |
+| `extensions/*.ts` | **Custom extensions (footer, etc.)** |
+
+**IMPORTANT:** Extensions live in `~/.pi/agent/extensions/`, NOT in this repo. When modifying footer or other extension-based features, edit files there. Extensions load dynamically - no build needed, just restart `po`.
+
+**Current extensions:**
+- `powerline-footer.ts` - Custom footer with path, context bar, model, git info, help hint
+
+**Other:**
+- `~/.local/bin/po` - Your custom command script
 
 **Note:** To change which models are shown or configure provider APIs, edit files in `~/.pi/agent/`:
 - `settings.json` - Model filters (`hidden`, `hiddenProviders` patterns)

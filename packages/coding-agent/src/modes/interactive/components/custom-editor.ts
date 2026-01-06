@@ -12,6 +12,7 @@ export class CustomEditor extends Editor {
 	public onEscape?: () => void;
 	public onCtrlD?: () => void;
 	public onPasteImage?: () => void;
+	public onHelp?: () => void;
 	/** Handler for extension-registered shortcuts. Returns true if handled. */
 	public onExtensionShortcut?: (data: string) => boolean;
 
@@ -36,6 +37,12 @@ export class CustomEditor extends Editor {
 		// Check for Ctrl+V to handle clipboard image paste
 		if (matchesKey(data, "ctrl+v")) {
 			this.onPasteImage?.();
+			return;
+		}
+
+		// Check for ? when editor is empty - show help
+		if (data === "?" && this.getText().length === 0 && this.onHelp) {
+			this.onHelp();
 			return;
 		}
 

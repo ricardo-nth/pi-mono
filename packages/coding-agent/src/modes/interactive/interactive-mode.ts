@@ -57,6 +57,7 @@ import { ExtensionEditorComponent } from "./components/extension-editor.js";
 import { ExtensionInputComponent } from "./components/extension-input.js";
 import { ExtensionSelectorComponent } from "./components/extension-selector.js";
 import { FooterComponent } from "./components/footer.js";
+import { HotkeysPopupComponent } from "./components/hotkeys-popup.js";
 import { LoginDialogComponent } from "./components/login-dialog.js";
 import { ModelSelectorComponent } from "./components/model-selector.js";
 import { OAuthSelectorComponent } from "./components/oauth-selector.js";
@@ -981,6 +982,11 @@ export class InteractiveMode {
 		this.editor.onPasteImage = () => {
 			this.handleClipboardImagePaste();
 		};
+
+		// Handle ? for help (when editor is empty)
+		this.editor.onHelp = () => {
+			this.showHotkeysPopup();
+		};
 	}
 
 	private async handleClipboardImagePaste(): Promise<void> {
@@ -1048,6 +1054,11 @@ export class InteractiveMode {
 			}
 			if (text === "/hotkeys") {
 				this.handleHotkeysCommand();
+				this.editor.setText("");
+				return;
+			}
+			if (text === "?") {
+				this.showHotkeysPopup();
 				this.editor.setText("");
 				return;
 			}
@@ -2096,6 +2107,26 @@ export class InteractiveMode {
 				},
 			);
 			return { component: selector, focus: selector };
+		});
+	}
+
+	private showHotkeysPopup(): void {
+		this.showSelector((done) => {
+			const extensionRunner = this.session.extensionRunner;
+			const extensionShortcuts = extensionRunner ? extensionRunner.getShortcuts() : undefined;
+
+			const popup = new HotkeysPopupComponent(
+				{
+					editorKeyDisplay: (action) => this.getEditorKeyDisplay(action as any),
+					appKeyDisplay: (action) => this.getAppKeyDisplay(action as any),
+					extensionShortcuts,
+				},
+				() => {
+					done();
+					this.ui.requestRender();
+				},
+			);
+			return { component: popup, focus: popup };
 		});
 	}
 

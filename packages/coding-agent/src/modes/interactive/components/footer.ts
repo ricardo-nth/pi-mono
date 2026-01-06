@@ -341,6 +341,9 @@ export class FooterComponent implements Component {
 			lines.push(truncateToWidth(statusLine, width, theme.fg("dim", "...")));
 		}
 
+		// Add help hint as final line
+		lines.push(theme.fg("muted", "? for help"));
+
 		return lines;
 	}
 }
