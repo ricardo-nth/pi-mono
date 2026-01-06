@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.37.3] - 2026-01-06
+
 ### Added
 
 - `sessionId` option on `Agent` to forward session identifiers to LLM providers for session-based caching.
