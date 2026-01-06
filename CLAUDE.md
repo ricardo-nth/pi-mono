@@ -163,19 +163,61 @@ git push origin main
 
 ---
 
-## Things That Might Get Fiddled With Later
+## Backlog
 
-No promises. These are just ideas that might happen if I get bored:
+Ideas that might happen. Organised by whether they're UI-only or require functional changes.
 
+### UI Tweaks (Safe to Do)
+
+**Model Selector:**
 - [ ] Collapsible provider sections
 - [ ] Favorite models pinned to top
-- [ ] Model cost/speed indicators in selector
-- [ ] Quick switch between recent models (Ctrl+R?)
+- [ ] Model cost/speed indicators
 - [ ] Custom model aliases/nicknames
-- [ ] Better thinking level indicator
-- [ ] Session list tweaks
 
-Or maybe none of these. Who knows.
+**Footer:**
+- [ ] Nerd font folder icons (stored for later: ``, ``, `󰈙`, `󰲋`)
+- [ ] Settings toggle for showing/hiding stats (cache, cost, input/output)
+
+### Functional Changes (Touch With Care)
+
+These require changes beyond UI. Proceed carefully, test thoroughly.
+
+**Session Close Experience (like Codex):**
+- [ ] Ctrl+C shows "press again to close" confirmation
+- [ ] On close: show resume command (`po --resume <session-id>`)
+- [ ] On close: show session summary (total input, output, cached tokens)
+- [ ] On close: show cache stats (useful to see what you lose)
+
+**Model Change Notifications:**
+- [ ] When changing models, show cache invalidation warning
+- [ ] Display "Cache used: X tokens" before switching providers
+
+**Cache Stats Display:**
+- [ ] Optional cache stats in footer (setting: `showCacheStats: true`)
+- [ ] Useful for debugging (e.g., OAuth cache issues)
+- [ ] Show on session close rather than during use
+
+**Cost Tracking:**
+- [ ] Optional cost display (setting: `showCost: true`)
+- [ ] Requires model pricing data in provider settings
+
+### Icons Reference
+
+Nerd font icons collected for potential future use:
+```
+Folders:    󰉋 (current)   (alt)  󰈙 (documents)  󰲋 (projects)
+Git:         (branch)   (current)
+Clock:       (time)
+Node:        (for path truncation indicator)
+```
+
+### Notes
+
+- Cache stats are most useful at session close, not during use
+- When changing providers, cache is invalidated - worth notifying
+- Input/output token counts aren't personally useful for decision-making
+- Cost tracking needs model pricing data to be meaningful
 
 ---
 
