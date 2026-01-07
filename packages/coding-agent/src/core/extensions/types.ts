@@ -8,7 +8,12 @@
  * - Interact with the user via UI primitives
  */
 
-import type { AgentMessage, AgentToolResult, AgentToolUpdateCallback } from "@mariozechner/pi-agent-core";
+import type {
+	AgentMessage,
+	AgentToolResult,
+	AgentToolUpdateCallback,
+	ThinkingLevel,
+} from "@mariozechner/pi-agent-core";
 import type { ImageContent, Model, TextContent, ToolResultMessage } from "@mariozechner/pi-ai";
 import type { Component, KeyId, TUI } from "@mariozechner/pi-tui";
 import type { Static, TSchema } from "@sinclair/typebox";
@@ -41,19 +46,27 @@ export type { AgentToolResult, AgentToolUpdateCallback };
 // UI Context
 // ============================================================================
 
+/** Options for extension UI dialogs. */
+export interface ExtensionUIDialogOptions {
+	/** AbortSignal to programmatically dismiss the dialog. */
+	signal?: AbortSignal;
+	/** Timeout in milliseconds. Dialog auto-dismisses with live countdown display. */
+	timeout?: number;
+}
+
 /**
  * UI context for extensions to request interactive UI.
  * Each mode (interactive, RPC, print) provides its own implementation.
  */
 export interface ExtensionUIContext {
 	/** Show a selector and return the user's choice. */
-	select(title: string, options: string[]): Promise<string | undefined>;
+	select(title: string, options: string[], opts?: ExtensionUIDialogOptions): Promise<string | undefined>;
 
 	/** Show a confirmation dialog. */
-	confirm(title: string, message: string): Promise<boolean>;
+	confirm(title: string, message: string, opts?: ExtensionUIDialogOptions): Promise<boolean>;
 
 	/** Show a text input dialog. */
-	input(title: string, placeholder?: string): Promise<string | undefined>;
+	input(title: string, placeholder?: string, opts?: ExtensionUIDialogOptions): Promise<string | undefined>;
 
 	/** Show a notification to the user. */
 	notify(message: string, type?: "info" | "warning" | "error"): void;
@@ -619,6 +632,19 @@ export interface ExtensionAPI {
 	/** Set the active tools by name. */
 	setActiveTools(toolNames: string[]): void;
 
+	// =========================================================================
+	// Model and Thinking Level
+	// =========================================================================
+
+	/** Set the current model. Returns false if no API key available. */
+	setModel(model: Model<any>): Promise<boolean>;
+
+	/** Get current thinking level. */
+	getThinkingLevel(): ThinkingLevel;
+
+	/** Set thinking level (clamped to model capabilities). */
+	setThinkingLevel(level: ThinkingLevel): void;
+
 	/** Shared event bus for extension communication. */
 	events: EventBus;
 }
@@ -670,6 +696,12 @@ export type GetAllToolsHandler = () => string[];
 
 export type SetActiveToolsHandler = (toolNames: string[]) => void;
 
+export type SetModelHandler = (model: Model<any>) => Promise<boolean>;
+
+export type GetThinkingLevelHandler = () => ThinkingLevel;
+
+export type SetThinkingLevelHandler = (level: ThinkingLevel) => void;
+
 /** Loaded extension with all registered items. */
 export interface LoadedExtension {
 	path: string;
@@ -687,6 +719,9 @@ export interface LoadedExtension {
 	setGetActiveToolsHandler: (handler: GetActiveToolsHandler) => void;
 	setGetAllToolsHandler: (handler: GetAllToolsHandler) => void;
 	setSetActiveToolsHandler: (handler: SetActiveToolsHandler) => void;
+	setSetModelHandler: (handler: SetModelHandler) => void;
+	setGetThinkingLevelHandler: (handler: GetThinkingLevelHandler) => void;
+	setSetThinkingLevelHandler: (handler: SetThinkingLevelHandler) => void;
 	setFlagValue: (name: string, value: boolean | string) => void;
 }
 

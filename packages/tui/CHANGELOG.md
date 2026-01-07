@@ -2,6 +2,30 @@
 
 ## [Unreleased]
 
+## [0.37.8] - 2026-01-07
+
+### Added
+
+- `Component.wantsKeyRelease` property to opt-in to key release events (default false)
+
+### Fixed
+
+- TUI now filters out key release events by default, preventing double-processing of keys in editors and other components
+
+## [0.37.7] - 2026-01-07
+
+### Fixed
+
+- `matchesKey()` now correctly matches Kitty protocol sequences for unmodified letter keys (needed for key release events)
+
+## [0.37.6] - 2026-01-06
+
+### Added
+
+- Kitty keyboard protocol flag 2 support for key release events. New exports: `isKeyRelease(data)`, `isKeyRepeat(data)`, `KeyEventType` type. Terminals supporting Kitty protocol (Kitty, Ghostty, WezTerm) now send proper key-up events.
+
+## [0.37.5] - 2026-01-06
+
 ## [0.37.4] - 2026-01-06
 
 ## [0.37.3] - 2026-01-06

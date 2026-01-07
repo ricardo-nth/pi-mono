@@ -36,9 +36,11 @@ export type {
 	ExtensionHandler,
 	ExtensionShortcut,
 	ExtensionUIContext,
+	ExtensionUIDialogOptions,
 	FindToolResultEvent,
 	GetActiveToolsHandler,
 	GetAllToolsHandler,
+	GetThinkingLevelHandler,
 	GrepToolResultEvent,
 	LoadExtensionsResult,
 	// Loaded Extension
@@ -70,6 +72,8 @@ export type {
 	SessionSwitchEvent,
 	SessionTreeEvent,
 	SetActiveToolsHandler,
+	SetModelHandler,
+	SetThinkingLevelHandler,
 	// Events - Tool
 	ToolCallEvent,
 	ToolCallEventResult,
