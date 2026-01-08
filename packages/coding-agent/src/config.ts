@@ -106,7 +106,8 @@ export function getChangelogPath(): string {
 
 const pkg = JSON.parse(readFileSync(getPackageJsonPath(), "utf-8"));
 
-export const APP_NAME: string = pkg.piConfig?.name || "pi";
+const DEFAULT_APP_NAME = "pi";
+export const APP_NAME: string = process.env.APP_NAME || pkg.piConfig?.name || DEFAULT_APP_NAME;
 export const CONFIG_DIR_NAME: string = pkg.piConfig?.configDir || ".pi";
 export const VERSION: string = pkg.version;
 
