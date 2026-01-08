@@ -5,7 +5,7 @@ implementation: extension
 effort: medium
 impact: high
 risk: low
-status: idea
+status: done
 files: []
 extensionApi: ctx.ui.custom(), registerCommand()
 created: 2026-01-06

@@ -5,7 +5,7 @@ implementation: hybrid
 effort: medium
 impact: high
 risk: low
-status: idea
+status: done
 files:
   - packages/coding-agent/src/modes/interactive/components/model-selector.ts
   - packages/coding-agent/src/core/settings-manager.ts

@@ -5,7 +5,7 @@ implementation: core
 effort: low
 impact: high
 risk: low
-status: idea
+status: done
 files:
   - packages/tui/src/components/editor.ts
 extensionApi: null

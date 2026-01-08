@@ -50,3 +50,8 @@ coding-agent  R3.8k W17k  ████░░░░ 12%
 - Consider showing only on session close instead (see session-close-summary)
 - Low priority for always-visible display
 - R = cache read, W = cache write
+
+## Updated Approach (2026-01-08)
+
+With the custom `powerline-footer.ts` extension, can add cache stats as toggleable line.
+Same pattern as cost display - extend existing footer extension with `/footer cache` toggle.

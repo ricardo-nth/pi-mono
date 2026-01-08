@@ -74,9 +74,9 @@ Replace inline slash command menus with a proper command palette popup, similar 
 This is the key API for building the command palette:
 
 ```typescript
-const result = await ctx.ui.custom<string>((tui, theme, done) => {
+const result = await ctx.ui.custom<string>((tui, theme, keybindings, done) => {
   // Create your component
-  // Handle keyboard input
+  // Handle keyboard input (keybindings provides access to configured shortcuts)
   // Call done(value) when finished
   return myComponent;
 });

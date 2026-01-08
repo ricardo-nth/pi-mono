@@ -43,3 +43,12 @@ coding-agent  $0.074  ████░░░░ 12%
 - Cost is already calculated in current footer (we removed it)
 - This just adds a setting to toggle visibility
 - Low priority - session close summary is better place for cost
+
+## Updated Approach (2026-01-08)
+
+With the custom `powerline-footer.ts` extension in place, we can:
+1. Add cost display as an optional line in the footer extension
+2. Toggle via `/footer cost` command (similar to example extensions)
+3. Keep main footer layout, just add/remove the cost line
+
+This is simpler than modifying core footer - just extend the existing extension.

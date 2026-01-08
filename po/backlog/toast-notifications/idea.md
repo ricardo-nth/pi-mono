@@ -5,7 +5,7 @@ implementation: hybrid
 effort: medium
 impact: medium
 risk: medium
-status: idea
+status: blocked
 files:
   - packages/tui/src/tui.ts
 extensionApi: ctx.ui.setWidget() for basic version
@@ -113,3 +113,18 @@ Use `ctx.ui.setWidget()` for a simpler "notification area" above the editor. Not
 - Cleaner than current inline "Loaded context" messages
 - Non-intrusive but informative
 - Foundation for more notification types later
+
+## Status: Blocked (2026-01-08)
+
+TUI doesn't support true overlay/toast rendering. The closest equivalent is **widgets** (`ctx.ui.setWidget()`), which:
+- Render above the editor (not floating)
+- Can auto-dismiss with `setTimeout`
+- Work well for transient notifications
+
+**Re-imagine as:** Widget-based notifications for:
+- Background task status (if/when supported)
+- Errors or warnings
+- Agent handoff notifications
+- Anything that benefits from timed display
+
+Not useful for hot-reload notifications since skills/extensions can't be hot-loaded.

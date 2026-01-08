@@ -5,7 +5,7 @@ implementation: core
 effort: low
 impact: medium
 risk: low
-status: idea
+status: done
 files:
   - packages/coding-agent/src/modes/interactive/interactive-mode.ts
 extensionApi: null

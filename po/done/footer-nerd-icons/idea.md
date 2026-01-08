@@ -5,7 +5,7 @@ implementation: extension
 effort: low
 impact: low
 risk: low
-status: idea
+status: done
 files: []
 extensionApi: ctx.ui.setFooter()
 created: 2025-01-06
