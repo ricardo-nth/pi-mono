@@ -32,7 +32,7 @@ import {
 	visibleWidth,
 } from "@mariozechner/pi-tui";
 import { spawn, spawnSync } from "child_process";
-import { APP_NAME, getAuthPath, getDebugLogPath, VERSION } from "../../config.js";
+import { getAuthPath, getDebugLogPath, VERSION } from "../../config.js";
 import type { AgentSession, AgentSessionEvent } from "../../core/agent-session.js";
 import type {
 	ExtensionContext,
@@ -43,7 +43,7 @@ import type {
 import { KeybindingsManager } from "../../core/keybindings.js";
 import { createCompactionSummaryMessage } from "../../core/messages.js";
 import { type SessionContext, SessionManager } from "../../core/session-manager.js";
-import { loadSkills } from "../../core/skills.js";
+import { loadSkills, type SkillWarning } from "../../core/skills.js";
 import { loadProjectContextFiles } from "../../core/system-prompt.js";
 import { allTools } from "../../core/tools/index.js";
 import type { TruncationResult } from "../../core/tools/truncate.js";
@@ -66,6 +66,7 @@ import { ExtensionInputComponent } from "./components/extension-input.js";
 import { ExtensionSelectorComponent } from "./components/extension-selector.js";
 import { FooterComponent } from "./components/footer.js";
 import { HotkeysPopupComponent } from "./components/hotkeys-popup.js";
+import { InfoViewerComponent } from "./components/info-viewer.js";
 import { LoginDialogComponent } from "./components/login-dialog.js";
 import { ModelSelectorComponent } from "./components/model-selector.js";
 import { OAuthSelectorComponent } from "./components/oauth-selector.js";
@@ -75,6 +76,7 @@ import { ToolExecutionComponent } from "./components/tool-execution.js";
 import { TreeSelectorComponent } from "./components/tree-selector.js";
 import { UserMessageComponent } from "./components/user-message.js";
 import { UserMessageSelectorComponent } from "./components/user-message-selector.js";
+import { WelcomeScreenComponent } from "./components/welcome-screen.js";
 import {
 	getAvailableThemes,
 	getEditorTheme,
@@ -195,11 +197,14 @@ export class InteractiveMode {
 	// Custom footer from extension (undefined = use built-in footer)
 	private customFooter: (Component & { dispose?(): void }) | undefined = undefined;
 
-	// Built-in header (logo + keybinding hints + changelog)
+	// Built-in header (welcome screen with logo + loaded items)
 	private builtInHeader: Component | undefined = undefined;
 
 	// Custom header from extension (undefined = use built-in header)
 	private customHeader: (Component & { dispose?(): void }) | undefined = undefined;
+
+	// Skill warnings from startup (displayed in initExtensions)
+	private startupSkillWarnings: SkillWarning[] = [];
 
 	// Convenience accessors
 	private get agent() {
@@ -242,6 +247,9 @@ export class InteractiveMode {
 		const slashCommands: SlashCommand[] = [
 			{ name: "settings", description: "Open settings menu" },
 			{ name: "model", description: "Select model (opens selector UI)" },
+			{ name: "context", description: "Show loaded context files" },
+			{ name: "skills", description: "Show loaded skills" },
+			{ name: "extensions", description: "Show loaded extensions" },
 			{ name: "export", description: "Export session to HTML file" },
 			{ name: "share", description: "Share session as a secret GitHub gist" },
 			{ name: "copy", description: "Copy last agent message to clipboard" },
@@ -290,11 +298,24 @@ export class InteractiveMode {
 		const fdPath = await ensureTool("fd");
 		this.setupAutocomplete(fdPath);
 
-		// Add header with logo only
+		// Gather data for welcome screen
+		const contextFiles = loadProjectContextFiles();
+		const skillsSettings = this.session.skillsSettings;
+		const { skills: loadedSkills, warnings: skillWarnings } =
+			skillsSettings?.enabled !== false ? loadSkills(skillsSettings ?? {}) : { skills: [], warnings: [] };
+		const extensionPaths = this.session.extensionRunner?.getExtensionPaths() ?? [];
+
+		// Store skill warnings to display later in initExtensions
+		this.startupSkillWarnings = skillWarnings;
+
+		// Add welcome screen header
 		// NOTE: Startup hotkey instructions removed - they now live in HotkeysPopupComponent (? key).
 		// If upstream adds new hotkeys here, add them to hotkeys-popup.ts instead of restoring this block.
-		const logo = theme.bold(theme.fg("accent", APP_NAME)) + theme.fg("dim", ` v${this.version}`);
-		this.builtInHeader = new Text(logo, 1, 0);
+		this.builtInHeader = new WelcomeScreenComponent({
+			contextFiles,
+			skills: loadedSkills,
+			extensionPaths,
+		});
 
 		// Setup UI layout
 		this.ui.addChild(new Spacer(1));
@@ -499,32 +520,14 @@ export class InteractiveMode {
 	 * Initialize the extension system with TUI-based UI context.
 	 */
 	private async initExtensions(): Promise<void> {
-		// Show loaded project context files
-		const contextFiles = loadProjectContextFiles();
-		if (contextFiles.length > 0) {
-			const contextList = contextFiles.map((f) => theme.fg("dim", `  ${f.path}`)).join("\n");
-			this.chatContainer.addChild(new Text(theme.fg("muted", "Loaded context:\n") + contextList, 0, 0));
+		// Show skill warnings if any (keep these visible - they're actionable)
+		// These were gathered during welcome screen creation
+		if (this.startupSkillWarnings.length > 0) {
+			const warningList = this.startupSkillWarnings
+				.map((w) => theme.fg("warning", `  ${w.skillPath}: ${w.message}`))
+				.join("\n");
+			this.chatContainer.addChild(new Text(theme.fg("warning", "Skill warnings:\n") + warningList, 0, 0));
 			this.chatContainer.addChild(new Spacer(1));
-		}
-
-		// Show loaded skills
-		const skillsSettings = this.session.skillsSettings;
-		if (skillsSettings?.enabled !== false) {
-			const { skills, warnings: skillWarnings } = loadSkills(skillsSettings ?? {});
-			if (skills.length > 0) {
-				const skillList = skills.map((s) => theme.fg("dim", `  ${s.filePath}`)).join("\n");
-				this.chatContainer.addChild(new Text(theme.fg("muted", "Loaded skills:\n") + skillList, 0, 0));
-				this.chatContainer.addChild(new Spacer(1));
-			}
-
-			// Show skill warnings if any
-			if (skillWarnings.length > 0) {
-				const warningList = skillWarnings
-					.map((w) => theme.fg("warning", `  ${w.skillPath}: ${w.message}`))
-					.join("\n");
-				this.chatContainer.addChild(new Text(theme.fg("warning", "Skill warnings:\n") + warningList, 0, 0));
-				this.chatContainer.addChild(new Spacer(1));
-			}
 		}
 
 		const extensionRunner = this.session.extensionRunner;
@@ -656,14 +659,6 @@ export class InteractiveMode {
 
 		// Set up extension-registered shortcuts
 		this.setupExtensionShortcuts(extensionRunner);
-
-		// Show loaded extensions
-		const extensionPaths = extensionRunner.getExtensionPaths();
-		if (extensionPaths.length > 0) {
-			const extList = extensionPaths.map((p) => theme.fg("dim", `  ${p}`)).join("\n");
-			this.chatContainer.addChild(new Text(theme.fg("muted", "Loaded extensions:\n") + extList, 0, 0));
-			this.chatContainer.addChild(new Spacer(1));
-		}
 
 		// Warn about built-in tool overrides
 		const builtInToolNames = new Set(Object.keys(allTools));
@@ -1319,6 +1314,21 @@ export class InteractiveMode {
 			}
 			if (text === "?") {
 				this.showHotkeysPopup();
+				this.editor.setText("");
+				return;
+			}
+			if (text === "/context") {
+				this.showContextViewer();
+				this.editor.setText("");
+				return;
+			}
+			if (text === "/skills") {
+				this.showSkillsViewer();
+				this.editor.setText("");
+				return;
+			}
+			if (text === "/extensions") {
+				this.showExtensionsViewer();
 				this.editor.setText("");
 				return;
 			}
@@ -2402,6 +2412,80 @@ export class InteractiveMode {
 				},
 			);
 			return { component: popup, focus: popup };
+		});
+	}
+
+	private showContextViewer(): void {
+		const contextFiles = loadProjectContextFiles();
+		this.showSelector((done) => {
+			const viewer = new InfoViewerComponent(
+				{
+					title: "Loaded Context",
+					subtitle: `${contextFiles.length} file(s)`,
+					items: contextFiles.map((f) => ({ label: f.path })),
+					emptyMessage: "No context files loaded",
+				},
+				() => {
+					done();
+					this.ui.requestRender();
+				},
+			);
+			return { component: viewer, focus: viewer };
+		});
+	}
+
+	private showSkillsViewer(): void {
+		const skillsSettings = this.session.skillsSettings;
+		const { skills } = loadSkills(skillsSettings ?? {});
+		this.showSelector((done) => {
+			const viewer = new InfoViewerComponent(
+				{
+					title: "Loaded Skills",
+					subtitle: `${skills.length} skill(s)`,
+					items: skills.map((s) => ({
+						label: s.name,
+						detail: s.filePath,
+					})),
+					emptyMessage: "No skills loaded",
+				},
+				() => {
+					done();
+					this.ui.requestRender();
+				},
+			);
+			return { component: viewer, focus: viewer };
+		});
+	}
+
+	private showExtensionsViewer(): void {
+		const extensionRunner = this.session.extensionRunner;
+		const paths = extensionRunner?.getExtensionPaths() ?? [];
+		const commands = extensionRunner?.getRegisteredCommands() ?? [];
+
+		this.showSelector((done) => {
+			const items: Array<{ label: string; detail?: string }> = paths.map((p) => ({ label: p }));
+			// Add registered commands as sub-items
+			if (commands.length > 0) {
+				items.push({ label: "" }); // spacer
+				items.push({ label: "Commands:" });
+				for (const cmd of commands) {
+					items.push({ label: `  /${cmd.name}`, detail: cmd.description });
+				}
+			}
+
+			const viewer = new InfoViewerComponent(
+				{
+					title: "Loaded Extensions",
+					subtitle: `${paths.length} extension(s)`,
+					items,
+					emptyMessage: "No extensions loaded",
+				},
+				() => {
+					done();
+					this.ui.requestRender();
+				},
+			);
+			return { component: viewer, focus: viewer };
 		});
 	}
 
