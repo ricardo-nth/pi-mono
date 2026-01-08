@@ -366,7 +366,7 @@ describe("extensions discovery", () => {
 		const result = await discoverAndLoadExtensions([], tempDir, tempDir);
 
 		expect(result.errors).toHaveLength(1);
-		expect(result.errors[0].error).toContain("must export a default function");
+		expect(result.errors[0].error).toContain("does not export a valid factory function");
 		expect(result.extensions).toHaveLength(0);
 	});
 
@@ -442,5 +442,35 @@ describe("extensions discovery", () => {
 		expect(result.errors).toHaveLength(0);
 		expect(result.extensions).toHaveLength(1);
 		expect(result.extensions[0].flags.has("--my-flag")).toBe(true);
+	});
+
+	it("loadExtensions only loads explicit paths without discovery", async () => {
+		// Create discoverable extensions (would be found by discoverAndLoadExtensions)
+		fs.writeFileSync(path.join(extensionsDir, "discovered.ts"), extensionCodeWithTool("discovered"));
+
+		// Create explicit extension outside discovery path
+		const explicitPath = path.join(tempDir, "explicit.ts");
+		fs.writeFileSync(explicitPath, extensionCodeWithTool("explicit"));
+
+		// Use loadExtensions directly to skip discovery
+		const { loadExtensions } = await import("../src/core/extensions/loader.js");
+		const result = await loadExtensions([explicitPath], tempDir);
+
+		expect(result.errors).toHaveLength(0);
+		expect(result.extensions).toHaveLength(1);
+		expect(result.extensions[0].tools.has("explicit")).toBe(true);
+		expect(result.extensions[0].tools.has("discovered")).toBe(false);
+	});
+
+	it("loadExtensions with no paths loads nothing", async () => {
+		// Create discoverable extensions (would be found by discoverAndLoadExtensions)
+		fs.writeFileSync(path.join(extensionsDir, "discovered.ts"), extensionCode);
+
+		// Use loadExtensions directly with empty paths
+		const { loadExtensions } = await import("../src/core/extensions/loader.js");
+		const result = await loadExtensions([], tempDir);
+
+		expect(result.errors).toHaveLength(0);
+		expect(result.extensions).toHaveLength(0);
 	});
 });

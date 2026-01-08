@@ -1125,6 +1125,7 @@ pi [options] [@files...] [messages...]
 | `--tools <tools>` | Comma-separated tool list (default: `read,bash,edit,write`) |
 | `--thinking <level>` | Thinking level: `off`, `minimal`, `low`, `medium`, `high` |
 | `--extension <path>`, `-e` | Load an extension file (can be used multiple times) |
+| `--no-extensions` | Disable extension discovery (explicit `-e` paths still work) |
 | `--no-skills` | Disable skills discovery and loading |
 | `--skills <patterns>` | Comma-separated glob patterns to filter skills (e.g., `git-*,docker`) |
 | `--export <file> [output]` | Export session to HTML |
@@ -1182,6 +1183,15 @@ pi --tools read,grep,find,ls -p "Review the architecture"
 # Export session
 pi --export session.jsonl output.html
 ```
+
+### Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, etc. | API keys for providers (see [API Keys & OAuth](#api-keys--oauth)) |
+| `PI_CODING_AGENT_DIR` | Override the agent config directory (default: `~/.pi/agent`) |
+| `PI_SKIP_VERSION_CHECK` | Skip new version check at startup (useful for Nix or other package manager installs) |
+| `VISUAL`, `EDITOR` | External editor for Ctrl+G (e.g., `vim`, `code --wait`) |
 
 ---
 

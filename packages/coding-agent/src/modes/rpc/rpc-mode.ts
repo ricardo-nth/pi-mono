@@ -63,6 +63,9 @@ export async function runRpcMode(session: AgentSession): Promise<never> {
 		{ resolve: (value: any) => void; reject: (error: Error) => void }
 	>();
 
+	// Shutdown request flag
+	let shutdownRequested = false;
+
 	/** Helper for dialog methods with signal/timeout support */
 	function createDialogPromise<T>(
 		opts: ExtensionUIDialogOptions | undefined,
@@ -219,6 +222,10 @@ export async function runRpcMode(session: AgentSession): Promise<never> {
 			});
 		},
 
+		setEditorComponent(): void {
+			// Custom editor components not supported in RPC mode
+		},
+
 		get theme() {
 			return theme;
 		},
@@ -227,35 +234,66 @@ export async function runRpcMode(session: AgentSession): Promise<never> {
 	// Set up extensions with RPC-based UI context
 	const extensionRunner = session.extensionRunner;
 	if (extensionRunner) {
-		extensionRunner.initialize({
-			getModel: () => session.agent.state.model,
-			sendMessageHandler: (message, options) => {
-				session.sendCustomMessage(message, options).catch((e) => {
-					output(error(undefined, "extension_send", e.message));
-				});
+		extensionRunner.initialize(
+			// ExtensionActions
+			{
+				sendMessage: (message, options) => {
+					session.sendCustomMessage(message, options).catch((e) => {
+						output(error(undefined, "extension_send", e.message));
+					});
+				},
+				sendUserMessage: (content, options) => {
+					session.sendUserMessage(content, options).catch((e) => {
+						output(error(undefined, "extension_send_user", e.message));
+					});
+				},
+				appendEntry: (customType, data) => {
+					session.sessionManager.appendCustomEntry(customType, data);
+				},
+				getActiveTools: () => session.getActiveToolNames(),
+				getAllTools: () => session.getAllToolNames(),
+				setActiveTools: (toolNames: string[]) => session.setActiveToolsByName(toolNames),
+				setModel: async (model) => {
+					const key = await session.modelRegistry.getApiKey(model);
+					if (!key) return false;
+					await session.setModel(model);
+					return true;
+				},
+				getThinkingLevel: () => session.thinkingLevel,
+				setThinkingLevel: (level) => session.setThinkingLevel(level),
 			},
-			sendUserMessageHandler: (content, options) => {
-				session.sendUserMessage(content, options).catch((e) => {
-					output(error(undefined, "extension_send_user", e.message));
-				});
+			// ExtensionContextActions
+			{
+				getModel: () => session.agent.state.model,
+				isIdle: () => !session.isStreaming,
+				abort: () => session.abort(),
+				hasPendingMessages: () => session.pendingMessageCount > 0,
+				shutdown: () => {
+					shutdownRequested = true;
+				},
 			},
-			appendEntryHandler: (customType, data) => {
-				session.sessionManager.appendCustomEntry(customType, data);
+			// ExtensionCommandContextActions - commands invokable via prompt("/command")
+			{
+				waitForIdle: () => session.agent.waitForIdle(),
+				newSession: async (options) => {
+					const success = await session.newSession({ parentSession: options?.parentSession });
+					// Note: setup callback runs but no UI feedback in RPC mode
+					if (success && options?.setup) {
+						await options.setup(session.sessionManager);
+					}
+					return { cancelled: !success };
+				},
+				branch: async (entryId) => {
+					const result = await session.branch(entryId);
+					return { cancelled: result.cancelled };
+				},
+				navigateTree: async (targetId, options) => {
+					const result = await session.navigateTree(targetId, { summarize: options?.summarize });
+					return { cancelled: result.cancelled };
+				},
 			},
-			getActiveToolsHandler: () => session.getActiveToolNames(),
-			getAllToolsHandler: () => session.getAllToolNames(),
-			setActiveToolsHandler: (toolNames: string[]) => session.setActiveToolsByName(toolNames),
-			setModelHandler: async (model) => {
-				const key = await session.modelRegistry.getApiKey(model);
-				if (!key) return false;
-				await session.setModel(model);
-				return true;
-			},
-			getThinkingLevelHandler: () => session.thinkingLevel,
-			setThinkingLevelHandler: (level) => session.setThinkingLevel(level),
-			uiContext: createExtensionUIContext(),
-			hasUI: false,
-		});
+			createExtensionUIContext(),
+		);
 		extensionRunner.onError((err) => {
 			output({ type: "extension_error", extensionPath: err.extensionPath, event: err.event, error: err.error });
 		});
@@ -483,6 +521,22 @@ export async function runRpcMode(session: AgentSession): Promise<never> {
 		}
 	};
 
+	/**
+	 * Check if shutdown was requested and perform shutdown if so.
+	 * Called after handling each command when waiting for the next command.
+	 */
+	async function checkShutdownRequested(): Promise<void> {
+		if (!shutdownRequested) return;
+
+		if (extensionRunner?.hasHandlers("session_shutdown")) {
+			await extensionRunner.emit({ type: "session_shutdown" });
+		}
+
+		// Close readline interface to stop waiting for input
+		rl.close();
+		process.exit(0);
+	}
+
 	// Listen for JSON input
 	const rl = readline.createInterface({
 		input: process.stdin,
@@ -509,6 +563,9 @@ export async function runRpcMode(session: AgentSession): Promise<never> {
 			const command = parsed as RpcCommand;
 			const response = await handleCommand(command);
 			output(response);
+
+			// Check for deferred shutdown request (idle between commands)
+			await checkShutdownRequested();
 		} catch (e: any) {
 			output(error(undefined, "parse", `Failed to parse command: ${e.message}`));
 		}

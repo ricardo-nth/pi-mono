@@ -40,23 +40,29 @@ export type {
 	AgentStartEvent,
 	AgentToolResult,
 	AgentToolUpdateCallback,
+	AppAction,
 	BeforeAgentStartEvent,
 	ContextEvent,
 	ExecOptions,
 	ExecResult,
+	Extension,
+	ExtensionActions,
 	ExtensionAPI,
 	ExtensionCommandContext,
+	ExtensionCommandContextActions,
 	ExtensionContext,
+	ExtensionContextActions,
 	ExtensionError,
 	ExtensionEvent,
 	ExtensionFactory,
 	ExtensionFlag,
 	ExtensionHandler,
+	ExtensionRuntime,
 	ExtensionShortcut,
 	ExtensionUIContext,
 	ExtensionUIDialogOptions,
+	KeybindingsManager,
 	LoadExtensionsResult,
-	LoadedExtension,
 	MessageRenderer,
 	MessageRenderOptions,
 	RegisteredCommand,
@@ -79,6 +85,7 @@ export type {
 	TurnStartEvent,
 } from "./core/extensions/index.js";
 export {
+	createExtensionRuntime,
 	discoverAndLoadExtensions,
 	ExtensionRunner,
 	isBashToolResult,
@@ -195,6 +202,14 @@ export {
 } from "./core/tools/index.js";
 // Main entry point
 export { main } from "./main.js";
+// Run modes for programmatic SDK usage
+export {
+	InteractiveMode,
+	type InteractiveModeOptions,
+	type PrintModeOptions,
+	runPrintMode,
+	runRpcMode,
+} from "./modes/index.js";
 // UI components for extensions
 export {
 	ArminComponent,

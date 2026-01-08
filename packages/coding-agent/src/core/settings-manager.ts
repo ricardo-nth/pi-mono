@@ -44,6 +44,13 @@ export interface ModelFiltersSettings {
 	hiddenProviders?: string[]; // Hide entire providers from model selector (e.g., ["cerebras", "groq"])
 }
 
+export interface ThinkingBudgetsSettings {
+	minimal?: number;
+	low?: number;
+	medium?: number;
+	high?: number;
+}
+
 export interface Settings {
 	lastChangelogVersion?: string;
 	defaultProvider?: string;
@@ -65,6 +72,7 @@ export interface Settings {
 	enabledModels?: string[]; // Model patterns for cycling (same format as --models CLI flag)
 	doubleEscapeAction?: "branch" | "tree"; // Action for double-escape with empty editor (default: "tree")
 	modelFilters?: ModelFiltersSettings; // Filter models from selector UI
+	thinkingBudgets?: ThinkingBudgetsSettings; // Custom token budgets for thinking levels
 }
 
 /** Deep merge settings: project/overrides take precedence, nested objects merge recursively */
@@ -184,7 +192,13 @@ export class SettingsManager {
 					mkdirSync(dir, { recursive: true });
 				}
 
-				// Save only global settings (project settings are read-only)
+				// Re-read current file to preserve any settings added externally while running
+				const currentFileSettings = SettingsManager.loadFromFile(this.settingsPath);
+				// Merge: file settings as base, globalSettings (in-memory changes) as overrides
+				const mergedSettings = deepMergeSettings(currentFileSettings, this.globalSettings);
+				this.globalSettings = mergedSettings;
+
+				// Save merged settings (project settings are read-only)
 				writeFileSync(this.settingsPath, JSON.stringify(this.globalSettings, null, 2), "utf-8");
 			} catch (error) {
 				console.error(`Warning: Could not save settings file: ${error}`);
@@ -379,6 +393,10 @@ export class SettingsManager {
 			ignoredSkills: [...(this.settings.skills?.ignoredSkills ?? [])],
 			includeSkills: [...(this.settings.skills?.includeSkills ?? [])],
 		};
+	}
+
+	getThinkingBudgets(): ThinkingBudgetsSettings | undefined {
+		return this.settings.thinkingBudgets;
 	}
 
 	getShowImages(): boolean {

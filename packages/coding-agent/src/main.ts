@@ -14,11 +14,9 @@ import { processFileArguments } from "./cli/file-processor.js";
 import { listModels } from "./cli/list-models.js";
 import { selectSession } from "./cli/session-picker.js";
 import { CONFIG_DIR_NAME, getAgentDir, getModelsPath, VERSION } from "./config.js";
-import type { AgentSession } from "./core/agent-session.js";
-
 import { createEventBus } from "./core/event-bus.js";
 import { exportFromFile } from "./core/export-html/index.js";
-import { discoverAndLoadExtensions, type ExtensionUIContext, type LoadedExtension } from "./core/extensions/index.js";
+import { discoverAndLoadExtensions, type LoadExtensionsResult, loadExtensions } from "./core/extensions/index.js";
 import type { ModelRegistry } from "./core/model-registry.js";
 import { resolveModelScope, type ScopedModel } from "./core/model-resolver.js";
 import { type CreateAgentSessionOptions, createAgentSession, discoverAuthStorage, discoverModels } from "./core/sdk.js";
@@ -30,94 +28,6 @@ import { allTools } from "./core/tools/index.js";
 import { runMigrations, showDeprecationWarnings } from "./migrations.js";
 import { InteractiveMode, runPrintMode, runRpcMode } from "./modes/index.js";
 import { initTheme, stopThemeWatcher } from "./modes/interactive/theme/theme.js";
-import { getChangelogPath, getNewEntries, parseChangelog } from "./utils/changelog.js";
-import { ensureTool } from "./utils/tools-manager.js";
-
-async function checkForNewVersion(currentVersion: string): Promise<string | undefined> {
-	try {
-		const response = await fetch("https://registry.npmjs.org/@mariozechner/pi-coding-agent/latest");
-		if (!response.ok) return undefined;
-
-		const data = (await response.json()) as { version?: string };
-		const latestVersion = data.version;
-
-		if (latestVersion && latestVersion !== currentVersion) {
-			return latestVersion;
-		}
-
-		return undefined;
-	} catch {
-		return undefined;
-	}
-}
-
-async function runInteractiveMode(
-	session: AgentSession,
-	version: string,
-	changelogMarkdown: string | undefined,
-	modelFallbackMessage: string | undefined,
-	modelsJsonError: string | undefined,
-	migratedProviders: string[],
-	versionCheckPromise: Promise<string | undefined>,
-	initialMessages: string[],
-	extensions: LoadedExtension[],
-	setExtensionUIContext: (uiContext: ExtensionUIContext, hasUI: boolean) => void,
-	initialMessage?: string,
-	initialImages?: ImageContent[],
-	fdPath: string | undefined = undefined,
-): Promise<void> {
-	const mode = new InteractiveMode(session, version, changelogMarkdown, extensions, setExtensionUIContext, fdPath);
-
-	await mode.init();
-
-	versionCheckPromise.then((newVersion) => {
-		if (newVersion) {
-			mode.showNewVersionNotification(newVersion);
-		}
-	});
-
-	mode.renderInitialMessages();
-
-	if (migratedProviders.length > 0) {
-		mode.showWarning(`Migrated credentials to auth.json: ${migratedProviders.join(", ")}`);
-	}
-
-	if (modelsJsonError) {
-		mode.showError(`models.json error: ${modelsJsonError}`);
-	}
-
-	if (modelFallbackMessage) {
-		mode.showWarning(modelFallbackMessage);
-	}
-
-	if (initialMessage) {
-		try {
-			await session.prompt(initialMessage, { images: initialImages });
-		} catch (error: unknown) {
-			const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
-			mode.showError(errorMessage);
-		}
-	}
-
-	for (const message of initialMessages) {
-		try {
-			await session.prompt(message);
-		} catch (error: unknown) {
-			const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
-			mode.showError(errorMessage);
-		}
-	}
-
-	while (true) {
-		const userInput = await mode.getUserInput();
-		try {
-			await session.prompt(userInput);
-		} catch (error: unknown) {
-			const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
-			mode.showError(errorMessage);
-		}
-	}
-}
 
 async function prepareInitialMessage(
 	parsed: Args,
@@ -144,31 +54,6 @@ async function prepareInitialMessage(
 		initialMessage,
 		initialImages: images.length > 0 ? images : undefined,
 	};
-}
-
-function getChangelogForDisplay(parsed: Args, settingsManager: SettingsManager): string | undefined {
-	if (parsed.continue || parsed.resume) {
-		return undefined;
-	}
-
-	const lastVersion = settingsManager.getLastChangelogVersion();
-	const changelogPath = getChangelogPath();
-	const entries = parseChangelog(changelogPath);
-
-	if (!lastVersion) {
-		if (entries.length > 0) {
-			settingsManager.setLastChangelogVersion(VERSION);
-			return entries.map((e) => e.content).join("\n\n");
-		}
-	} else {
-		const newEntries = getNewEntries(entries, lastVersion);
-		if (newEntries.length > 0) {
-			settingsManager.setLastChangelogVersion(VERSION);
-			return newEntries.map((e) => e.content).join("\n\n");
-		}
-	}
-
-	return undefined;
 }
 
 /**
@@ -235,7 +120,8 @@ function buildSessionOptions(
 	scopedModels: ScopedModel[],
 	sessionManager: SessionManager | undefined,
 	modelRegistry: ModelRegistry,
-	preloadedExtensions?: LoadedExtension[],
+	settingsManager: SettingsManager,
+	extensionsResult?: LoadExtensionsResult,
 ): CreateAgentSessionOptions {
 	const options: CreateAgentSessionOptions = {};
 
@@ -261,15 +147,21 @@ function buildSessionOptions(
 	}
 
 	// Thinking level
+	// Only use scoped model's thinking level if it was explicitly specified (e.g., "model:high")
+	// Otherwise, let the SDK use defaultThinkingLevel from settings
 	if (parsed.thinking) {
 		options.thinkingLevel = parsed.thinking;
-	} else if (scopedModels.length > 0 && !parsed.continue && !parsed.resume) {
+	} else if (scopedModels.length > 0 && scopedModels[0].thinkingLevel && !parsed.continue && !parsed.resume) {
 		options.thinkingLevel = scopedModels[0].thinkingLevel;
 	}
 
-	// Scoped models for Ctrl+P cycling
+	// Scoped models for Ctrl+P cycling - fill in default thinking level for models without explicit level
 	if (scopedModels.length > 0) {
-		options.scopedModels = scopedModels;
+		const defaultThinkingLevel = settingsManager.getDefaultThinkingLevel() ?? "off";
+		options.scopedModels = scopedModels.map((sm) => ({
+			model: sm.model,
+			thinkingLevel: sm.thinkingLevel ?? defaultThinkingLevel,
+		}));
 	}
 
 	// API key from CLI - set in authStorage
@@ -295,8 +187,8 @@ function buildSessionOptions(
 	}
 
 	// Pre-loaded extensions (from early CLI flag discovery)
-	if (preloadedExtensions && preloadedExtensions.length > 0) {
-		options.preloadedExtensions = preloadedExtensions;
+	if (extensionsResult && extensionsResult.extensions.length > 0) {
+		options.preloadedExtensions = extensionsResult;
 	}
 
 	return options;
@@ -317,20 +209,29 @@ export async function main(args: string[]) {
 	const firstPass = parseArgs(args);
 	time("parseArgs-firstPass");
 
-	// Early load extensions to discover their CLI flags
+	// Early load extensions to discover their CLI flags (unless --no-extensions)
 	const cwd = process.cwd();
 	const agentDir = getAgentDir();
 	const eventBus = createEventBus();
 	const settingsManager = SettingsManager.create(cwd);
 	time("SettingsManager.create");
-	// Merge CLI --extension args with settings.json extensions
-	const extensionPaths = [...settingsManager.getExtensionPaths(), ...(firstPass.extensions ?? [])];
-	const { extensions: loadedExtensions } = await discoverAndLoadExtensions(extensionPaths, cwd, agentDir, eventBus);
-	time("discoverExtensionFlags");
+
+	let extensionsResult: LoadExtensionsResult;
+	if (firstPass.noExtensions) {
+		// --no-extensions disables discovery, but explicit -e flags still work
+		const explicitPaths = firstPass.extensions ?? [];
+		extensionsResult = await loadExtensions(explicitPaths, cwd, eventBus);
+		time("loadExtensions");
+	} else {
+		// Merge CLI --extension args with settings.json extensions
+		const extensionPaths = [...settingsManager.getExtensionPaths(), ...(firstPass.extensions ?? [])];
+		extensionsResult = await discoverAndLoadExtensions(extensionPaths, cwd, agentDir, eventBus);
+		time("discoverExtensionFlags");
+	}
 
 	// Collect all extension flags
 	const extensionFlags = new Map<string, { type: "boolean" | "string" }>();
-	for (const ext of loadedExtensions) {
+	for (const ext of extensionsResult.extensions) {
 		for (const [name, flag] of ext.flags) {
 			extensionFlags.set(name, { type: flag.type });
 		}
@@ -340,13 +241,9 @@ export async function main(args: string[]) {
 	const parsed = parseArgs(args, extensionFlags);
 	time("parseArgs");
 
-	// Pass flag values to extensions
+	// Pass flag values to extensions via runtime
 	for (const [name, value] of parsed.unknownFlags) {
-		for (const ext of loadedExtensions) {
-			if (ext.flags.has(name)) {
-				ext.setFlagValue(name, value);
-			}
-		}
+		extensionsResult.runtime.flagValues.set(name, value);
 	}
 
 	if (parsed.version) {
@@ -423,7 +320,14 @@ export async function main(args: string[]) {
 		sessionManager = SessionManager.open(selectedPath);
 	}
 
-	const sessionOptions = buildSessionOptions(parsed, scopedModels, sessionManager, modelRegistry, loadedExtensions);
+	const sessionOptions = buildSessionOptions(
+		parsed,
+		scopedModels,
+		sessionManager,
+		modelRegistry,
+		settingsManager,
+		extensionsResult,
+	);
 	sessionOptions.authStorage = authStorage;
 	sessionOptions.modelRegistry = modelRegistry;
 	sessionOptions.eventBus = eventBus;
@@ -438,7 +342,7 @@ export async function main(args: string[]) {
 	}
 
 	time("buildSessionOptions");
-	const { session, extensionsResult, modelFallbackMessage } = await createAgentSession(sessionOptions);
+	const { session, modelFallbackMessage } = await createAgentSession(sessionOptions);
 	time("createAgentSession");
 
 	if (!isInteractive && !session.model) {
@@ -465,40 +369,32 @@ export async function main(args: string[]) {
 	if (mode === "rpc") {
 		await runRpcMode(session);
 	} else if (isInteractive) {
-		const versionCheckPromise = checkForNewVersion(VERSION).catch(() => undefined);
-		const changelogMarkdown = getChangelogForDisplay(parsed, settingsManager);
-
 		if (scopedModels.length > 0) {
 			const modelList = scopedModels
 				.map((sm) => {
-					const thinkingStr = sm.thinkingLevel !== "off" ? `:${sm.thinkingLevel}` : "";
+					const thinkingStr = sm.thinkingLevel ? `:${sm.thinkingLevel}` : "";
 					return `${sm.model.id}${thinkingStr}`;
 				})
 				.join(", ");
 			console.log(chalk.dim(`Model scope: ${modelList} ${chalk.gray("(Ctrl+P to cycle)")}`));
 		}
 
-		const fdPath = await ensureTool("fd");
-		time("ensureTool(fd)");
-
 		printTimings();
-		await runInteractiveMode(
-			session,
-			VERSION,
-			changelogMarkdown,
-			modelFallbackMessage,
-			modelRegistry.getError(),
+		const mode = new InteractiveMode(session, {
 			migratedProviders,
-			versionCheckPromise,
-			parsed.messages,
-			extensionsResult.extensions,
-			extensionsResult.setUIContext,
+			modelFallbackMessage,
 			initialMessage,
 			initialImages,
-			fdPath,
-		);
+			initialMessages: parsed.messages,
+		});
+		await mode.run();
 	} else {
-		await runPrintMode(session, mode, parsed.messages, initialMessage, initialImages);
+		await runPrintMode(session, {
+			mode,
+			messages: parsed.messages,
+			initialMessage,
+			initialImages,
+		});
 		stopThemeWatcher();
 		if (process.stdout.writableLength > 0) {
 			await new Promise<void>((resolve) => process.stdout.once("drain", resolve));

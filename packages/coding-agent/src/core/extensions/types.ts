@@ -15,12 +15,13 @@ import type {
 	ThinkingLevel,
 } from "@mariozechner/pi-agent-core";
 import type { ImageContent, Model, TextContent, ToolResultMessage } from "@mariozechner/pi-ai";
-import type { Component, KeyId, TUI } from "@mariozechner/pi-tui";
+import type { Component, EditorComponent, EditorTheme, KeyId, TUI } from "@mariozechner/pi-tui";
 import type { Static, TSchema } from "@sinclair/typebox";
 import type { Theme } from "../../modes/interactive/theme/theme.js";
 import type { CompactionPreparation, CompactionResult } from "../compaction/index.js";
 import type { EventBus } from "../event-bus.js";
 import type { ExecOptions, ExecResult } from "../exec.js";
+import type { KeybindingsManager } from "../keybindings.js";
 import type { CustomMessage } from "../messages.js";
 import type { ModelRegistry } from "../model-registry.js";
 import type {
@@ -41,6 +42,7 @@ import type {
 
 export type { ExecOptions, ExecResult } from "../exec.js";
 export type { AgentToolResult, AgentToolUpdateCallback };
+export type { AppAction, KeybindingsManager } from "../keybindings.js";
 
 // ============================================================================
 // UI Context
@@ -92,6 +94,7 @@ export interface ExtensionUIContext {
 		factory: (
 			tui: TUI,
 			theme: Theme,
+			keybindings: KeybindingsManager,
 			done: (result: T) => void,
 		) => (Component & { dispose?(): void }) | Promise<Component & { dispose?(): void }>,
 	): Promise<T>;
@@ -104,6 +107,43 @@ export interface ExtensionUIContext {
 
 	/** Show a multi-line editor for text editing. */
 	editor(title: string, prefill?: string): Promise<string | undefined>;
+
+	/**
+	 * Set a custom editor component via factory function.
+	 * Pass undefined to restore the default editor.
+	 *
+	 * The factory receives:
+	 * - `theme`: EditorTheme for styling borders and autocomplete
+	 * - `keybindings`: KeybindingsManager for app-level keybindings
+	 *
+	 * For full app keybinding support (escape, ctrl+d, model switching, etc.),
+	 * extend `CustomEditor` from `@mariozechner/pi-coding-agent` and call
+	 * `super.handleInput(data)` for keys you don't handle.
+	 *
+	 * @example
+	 * ```ts
+	 * import { CustomEditor } from "@mariozechner/pi-coding-agent";
+	 *
+	 * class VimEditor extends CustomEditor {
+	 *   private mode: "normal" | "insert" = "insert";
+	 *
+	 *   handleInput(data: string): void {
+	 *     if (this.mode === "normal") {
+	 *       // Handle vim normal mode keys...
+	 *       if (data === "i") { this.mode = "insert"; return; }
+	 *     }
+	 *     super.handleInput(data);  // App keybindings + text editing
+	 *   }
+	 * }
+	 *
+	 * ctx.ui.setEditorComponent((tui, theme, keybindings) =>
+	 *   new VimEditor(tui, theme, keybindings)
+	 * );
+	 * ```
+	 */
+	setEditorComponent(
+		factory: ((tui: TUI, theme: EditorTheme, keybindings: KeybindingsManager) => EditorComponent) | undefined,
+	): void;
 
 	/** Get the current theme for styling. */
 	readonly theme: Theme;
@@ -135,6 +175,8 @@ export interface ExtensionContext {
 	abort(): void;
 	/** Whether there are queued messages waiting */
 	hasPendingMessages(): boolean;
+	/** Gracefully shutdown pi and exit. Available in all contexts. */
+	shutdown(): void;
 }
 
 /**
@@ -649,8 +691,8 @@ export interface ExtensionAPI {
 	events: EventBus;
 }
 
-/** Extension factory function type. */
-export type ExtensionFactory = (pi: ExtensionAPI) => void;
+/** Extension factory function type. Supports both sync and async initialization. */
+export type ExtensionFactory = (pi: ExtensionAPI) => void | Promise<void>;
 
 // ============================================================================
 // Loaded Extension Types
@@ -702,8 +744,64 @@ export type GetThinkingLevelHandler = () => ThinkingLevel;
 
 export type SetThinkingLevelHandler = (level: ThinkingLevel) => void;
 
+/**
+ * Shared state created by loader, used during registration and runtime.
+ * Contains flag values (defaults set during registration, CLI values set after).
+ */
+export interface ExtensionRuntimeState {
+	flagValues: Map<string, boolean | string>;
+}
+
+/**
+ * Action implementations for pi.* API methods.
+ * Provided to runner.initialize(), copied into the shared runtime.
+ */
+export interface ExtensionActions {
+	sendMessage: SendMessageHandler;
+	sendUserMessage: SendUserMessageHandler;
+	appendEntry: AppendEntryHandler;
+	getActiveTools: GetActiveToolsHandler;
+	getAllTools: GetAllToolsHandler;
+	setActiveTools: SetActiveToolsHandler;
+	setModel: SetModelHandler;
+	getThinkingLevel: GetThinkingLevelHandler;
+	setThinkingLevel: SetThinkingLevelHandler;
+}
+
+/**
+ * Actions for ExtensionContext (ctx.* in event handlers).
+ * Required by all modes.
+ */
+export interface ExtensionContextActions {
+	getModel: () => Model<any> | undefined;
+	isIdle: () => boolean;
+	abort: () => void;
+	hasPendingMessages: () => boolean;
+	shutdown: () => void;
+}
+
+/**
+ * Actions for ExtensionCommandContext (ctx.* in command handlers).
+ * Only needed for interactive mode where extension commands are invokable.
+ */
+export interface ExtensionCommandContextActions {
+	waitForIdle: () => Promise<void>;
+	newSession: (options?: {
+		parentSession?: string;
+		setup?: (sessionManager: SessionManager) => Promise<void>;
+	}) => Promise<{ cancelled: boolean }>;
+	branch: (entryId: string) => Promise<{ cancelled: boolean }>;
+	navigateTree: (targetId: string, options?: { summarize?: boolean }) => Promise<{ cancelled: boolean }>;
+}
+
+/**
+ * Full runtime = state + actions.
+ * Created by loader with throwing action stubs, completed by runner.initialize().
+ */
+export interface ExtensionRuntime extends ExtensionRuntimeState, ExtensionActions {}
+
 /** Loaded extension with all registered items. */
-export interface LoadedExtension {
+export interface Extension {
 	path: string;
 	resolvedPath: string;
 	handlers: Map<string, HandlerFn[]>;
@@ -711,25 +809,15 @@ export interface LoadedExtension {
 	messageRenderers: Map<string, MessageRenderer>;
 	commands: Map<string, RegisteredCommand>;
 	flags: Map<string, ExtensionFlag>;
-	flagValues: Map<string, boolean | string>;
 	shortcuts: Map<KeyId, ExtensionShortcut>;
-	setSendMessageHandler: (handler: SendMessageHandler) => void;
-	setSendUserMessageHandler: (handler: SendUserMessageHandler) => void;
-	setAppendEntryHandler: (handler: AppendEntryHandler) => void;
-	setGetActiveToolsHandler: (handler: GetActiveToolsHandler) => void;
-	setGetAllToolsHandler: (handler: GetAllToolsHandler) => void;
-	setSetActiveToolsHandler: (handler: SetActiveToolsHandler) => void;
-	setSetModelHandler: (handler: SetModelHandler) => void;
-	setGetThinkingLevelHandler: (handler: GetThinkingLevelHandler) => void;
-	setSetThinkingLevelHandler: (handler: SetThinkingLevelHandler) => void;
-	setFlagValue: (name: string, value: boolean | string) => void;
 }
 
 /** Result of loading extensions. */
 export interface LoadExtensionsResult {
-	extensions: LoadedExtension[];
+	extensions: Extension[];
 	errors: Array<{ path: string; error: string }>;
-	setUIContext(uiContext: ExtensionUIContext, hasUI: boolean): void;
+	/** Shared runtime - actions are throwing stubs until runner.initialize() */
+	runtime: ExtensionRuntime;
 }
 
 // ============================================================================

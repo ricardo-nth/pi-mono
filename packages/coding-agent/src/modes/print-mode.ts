@@ -10,53 +10,85 @@ import type { AssistantMessage, ImageContent } from "@mariozechner/pi-ai";
 import type { AgentSession } from "../core/agent-session.js";
 
 /**
+ * Options for print mode.
+ */
+export interface PrintModeOptions {
+	/** Output mode: "text" for final response only, "json" for all events */
+	mode: "text" | "json";
+	/** Array of additional prompts to send after initialMessage */
+	messages?: string[];
+	/** First message to send (may contain @file content) */
+	initialMessage?: string;
+	/** Images to attach to the initial message */
+	initialImages?: ImageContent[];
+}
+
+/**
  * Run in print (single-shot) mode.
  * Sends prompts to the agent and outputs the result.
- *
- * @param session The agent session
- * @param mode Output mode: "text" for final response only, "json" for all events
- * @param messages Array of prompts to send
- * @param initialMessage Optional first message (may contain @file content)
- * @param initialImages Optional images for the initial message
  */
-export async function runPrintMode(
-	session: AgentSession,
-	mode: "text" | "json",
-	messages: string[],
-	initialMessage?: string,
-	initialImages?: ImageContent[],
-): Promise<void> {
-	// Extension runner already has no-op UI context by default (set in loader)
-	// Set up extensions for print mode (no UI)
+export async function runPrintMode(session: AgentSession, options: PrintModeOptions): Promise<void> {
+	const { mode, messages = [], initialMessage, initialImages } = options;
+	// Set up extensions for print mode (no UI, no command context)
 	const extensionRunner = session.extensionRunner;
 	if (extensionRunner) {
-		extensionRunner.initialize({
-			getModel: () => session.model,
-			sendMessageHandler: (message, options) => {
-				session.sendCustomMessage(message, options).catch((e) => {
-					console.error(`Extension sendMessage failed: ${e instanceof Error ? e.message : String(e)}`);
-				});
+		extensionRunner.initialize(
+			// ExtensionActions
+			{
+				sendMessage: (message, options) => {
+					session.sendCustomMessage(message, options).catch((e) => {
+						console.error(`Extension sendMessage failed: ${e instanceof Error ? e.message : String(e)}`);
+					});
+				},
+				sendUserMessage: (content, options) => {
+					session.sendUserMessage(content, options).catch((e) => {
+						console.error(`Extension sendUserMessage failed: ${e instanceof Error ? e.message : String(e)}`);
+					});
+				},
+				appendEntry: (customType, data) => {
+					session.sessionManager.appendCustomEntry(customType, data);
+				},
+				getActiveTools: () => session.getActiveToolNames(),
+				getAllTools: () => session.getAllToolNames(),
+				setActiveTools: (toolNames: string[]) => session.setActiveToolsByName(toolNames),
+				setModel: async (model) => {
+					const key = await session.modelRegistry.getApiKey(model);
+					if (!key) return false;
+					await session.setModel(model);
+					return true;
+				},
+				getThinkingLevel: () => session.thinkingLevel,
+				setThinkingLevel: (level) => session.setThinkingLevel(level),
 			},
-			sendUserMessageHandler: (content, options) => {
-				session.sendUserMessage(content, options).catch((e) => {
-					console.error(`Extension sendUserMessage failed: ${e instanceof Error ? e.message : String(e)}`);
-				});
+			// ExtensionContextActions
+			{
+				getModel: () => session.model,
+				isIdle: () => !session.isStreaming,
+				abort: () => session.abort(),
+				hasPendingMessages: () => session.pendingMessageCount > 0,
+				shutdown: () => {},
 			},
-			appendEntryHandler: (customType, data) => {
-				session.sessionManager.appendCustomEntry(customType, data);
+			// ExtensionCommandContextActions - commands invokable via prompt("/command")
+			{
+				waitForIdle: () => session.agent.waitForIdle(),
+				newSession: async (options) => {
+					const success = await session.newSession({ parentSession: options?.parentSession });
+					if (success && options?.setup) {
+						await options.setup(session.sessionManager);
+					}
+					return { cancelled: !success };
+				},
+				branch: async (entryId) => {
+					const result = await session.branch(entryId);
+					return { cancelled: result.cancelled };
+				},
+				navigateTree: async (targetId, options) => {
+					const result = await session.navigateTree(targetId, { summarize: options?.summarize });
+					return { cancelled: result.cancelled };
+				},
 			},
-			getActiveToolsHandler: () => session.getActiveToolNames(),
-			getAllToolsHandler: () => session.getAllToolNames(),
-			setActiveToolsHandler: (toolNames: string[]) => session.setActiveToolsByName(toolNames),
-			setModelHandler: async (model) => {
-				const key = await session.modelRegistry.getApiKey(model);
-				if (!key) return false;
-				await session.setModel(model);
-				return true;
-			},
-			getThinkingLevelHandler: () => session.thinkingLevel,
-			setThinkingLevelHandler: (level) => session.setThinkingLevel(level),
-		});
+			// No UI context
+		);
 		extensionRunner.onError((err) => {
 			console.error(`Extension error (${err.extensionPath}): ${err.error}`);
 		});

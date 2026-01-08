@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-01-08
+
+### Added
+
+- `thinkingBudgets` option on `Agent` and `AgentOptions` to customize token budgets per thinking level ([#529](https://github.com/badlogic/pi-mono/pull/529) by [@melihmucuk](https://github.com/melihmucuk))
+
 ## [0.37.8] - 2026-01-07
 
 ## [0.37.7] - 2026-01-07

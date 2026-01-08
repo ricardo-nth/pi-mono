@@ -556,6 +556,24 @@ Access to models and API keys.
 
 Control flow helpers.
 
+### ctx.shutdown()
+
+Request a graceful shutdown of pi.
+
+- **Interactive mode:** Deferred until the agent becomes idle (after processing all queued steering and follow-up messages).
+- **RPC mode:** Deferred until the next idle state (after completing the current command response, when waiting for the next command).
+- **Print mode:** No-op. The process exits automatically when all prompts are processed.
+
+Emits `session_shutdown` event to all extensions before exiting. Available in all contexts (event handlers, tools, commands, shortcuts).
+
+```typescript
+pi.on("tool_call", (event, ctx) => {
+  if (isFatal(event.input)) {
+    ctx.shutdown();
+  }
+});
+```
+
 ## ExtensionCommandContext
 
 Command handlers receive `ExtensionCommandContext`, which extends `ExtensionContext` with session control methods. These are only available in commands because they can deadlock if called from event handlers.
@@ -924,6 +942,21 @@ pi.registerTool({
 
 **Important:** Use `StringEnum` from `@mariozechner/pi-ai` for string enums. `Type.Union`/`Type.Literal` doesn't work with Google's API.
 
+### Overriding Built-in Tools
+
+Extensions can override built-in tools (`read`, `bash`, `edit`, `write`, `grep`, `find`, `ls`) by registering a tool with the same name. Interactive mode displays a warning when this happens.
+
+**Your implementation must match the exact result shape**, including the `details` type. The UI and session logic depend on these shapes for rendering and state tracking.
+
+Built-in tool implementations:
+- [read.ts](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/src/core/tools/read.ts) - `ReadToolDetails`
+- [bash.ts](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/src/core/tools/bash.ts) - `BashToolDetails`
+- [edit.ts](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/src/core/tools/edit.ts)
+- [write.ts](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/src/core/tools/write.ts)
+- [grep.ts](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/src/core/tools/grep.ts) - `GrepToolDetails`
+- [find.ts](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/src/core/tools/find.ts) - `FindToolDetails`
+- [ls.ts](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/src/core/tools/ls.ts) - `LsToolDetails`
+
 ### Output Truncation
 
 **Tools MUST truncate their output** to avoid overwhelming the LLM context. Large outputs can cause:
@@ -1170,6 +1203,10 @@ ctx.ui.setTitle("pi - my-project");
 // Editor text
 ctx.ui.setEditorText("Prefill text");
 const current = ctx.ui.getEditorText();
+
+// Custom editor (vim mode, emacs mode, etc.)
+ctx.ui.setEditorComponent((tui, theme, keybindings) => new VimEditor(tui, theme, keybindings));
+ctx.ui.setEditorComponent(undefined);  // Restore default editor
 ```
 
 **Examples:**
@@ -1177,6 +1214,7 @@ const current = ctx.ui.getEditorText();
 - `ctx.ui.setWidget()`: [plan-mode.ts](../examples/extensions/plan-mode.ts)
 - `ctx.ui.setFooter()`: [custom-footer.ts](../examples/extensions/custom-footer.ts)
 - `ctx.ui.setHeader()`: [custom-header.ts](../examples/extensions/custom-header.ts)
+- `ctx.ui.setEditorComponent()`: [modal-editor.ts](../examples/extensions/modal-editor.ts)
 
 ### Custom Components
 
@@ -1185,7 +1223,7 @@ For complex UI, use `ctx.ui.custom()`. This temporarily replaces the editor with
 ```typescript
 import { Text, Component } from "@mariozechner/pi-tui";
 
-const result = await ctx.ui.custom<boolean>((tui, theme, done) => {
+const result = await ctx.ui.custom<boolean>((tui, theme, keybindings, done) => {
   const text = new Text("Press Enter to confirm, Escape to cancel", 1, 1);
 
   text.onKey = (key) => {
@@ -1205,11 +1243,55 @@ if (result) {
 The callback receives:
 - `tui` - TUI instance (for screen dimensions, focus management)
 - `theme` - Current theme for styling
+- `keybindings` - App keybinding manager (for checking shortcuts)
 - `done(value)` - Call to close component and return value
 
 See [tui.md](tui.md) for the full component API.
 
 **Examples:** [handoff.ts](../examples/extensions/handoff.ts), [plan-mode.ts](../examples/extensions/plan-mode.ts), [preset.ts](../examples/extensions/preset.ts), [qna.ts](../examples/extensions/qna.ts), [snake.ts](../examples/extensions/snake.ts), [todo.ts](../examples/extensions/todo.ts), [tools.ts](../examples/extensions/tools.ts)
+
+### Custom Editor
+
+Replace the main input editor with a custom implementation (vim mode, emacs mode, etc.):
+
+```typescript
+import { CustomEditor, type ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { matchesKey } from "@mariozechner/pi-tui";
+
+class VimEditor extends CustomEditor {
+  private mode: "normal" | "insert" = "insert";
+
+  handleInput(data: string): void {
+    if (matchesKey(data, "escape") && this.mode === "insert") {
+      this.mode = "normal";
+      return;
+    }
+    if (this.mode === "normal" && data === "i") {
+      this.mode = "insert";
+      return;
+    }
+    super.handleInput(data);  // App keybindings + text editing
+  }
+}
+
+export default function (pi: ExtensionAPI) {
+  pi.on("session_start", (_event, ctx) => {
+    ctx.ui.setEditorComponent((_tui, theme, keybindings) =>
+      new VimEditor(theme, keybindings)
+    );
+  });
+}
+```
+
+**Key points:**
+- Extend `CustomEditor` (not base `Editor`) to get app keybindings (escape to abort, ctrl+d, model switching)
+- Call `super.handleInput(data)` for keys you don't handle
+- Factory receives `theme` and `keybindings` from the app
+- Pass `undefined` to restore default: `ctx.ui.setEditorComponent(undefined)`
+
+See [tui.md](tui.md) Pattern 7 for a complete example with mode indicator.
+
+**Examples:** [modal-editor.ts](../examples/extensions/modal-editor.ts)
 
 ### Message Rendering
 
