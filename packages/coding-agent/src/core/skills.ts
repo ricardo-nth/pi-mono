@@ -16,6 +16,9 @@ const ALLOWED_FRONTMATTER_FIELDS = new Set([
 	"compatibility",
 	"metadata",
 	"allowed-tools",
+	// Claude Code extensions (not in Agent Skills spec but commonly used)
+	"context",
+	"hooks",
 ]);
 
 /** Max name length per spec */
