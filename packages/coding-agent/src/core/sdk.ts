@@ -43,7 +43,7 @@ import { ModelRegistry } from "./model-registry.js";
 import { loadPromptTemplates as loadPromptTemplatesInternal, type PromptTemplate } from "./prompt-templates.js";
 import { SessionManager } from "./session-manager.js";
 import { type Settings, SettingsManager, type SkillsSettings } from "./settings-manager.js";
-import { loadSkills as loadSkillsInternal, type Skill } from "./skills.js";
+import { loadSkills as loadSkillsInternal, type Skill, type SkillWarning } from "./skills.js";
 import {
 	buildSystemPrompt as buildSystemPromptInternal,
 	loadProjectContextFiles as loadContextFilesInternal,
@@ -225,13 +225,16 @@ export async function discoverExtensions(
 /**
  * Discover skills from cwd and agentDir.
  */
-export function discoverSkills(cwd?: string, agentDir?: string, settings?: SkillsSettings): Skill[] {
-	const { skills } = loadSkillsInternal({
+export function discoverSkills(
+	cwd?: string,
+	agentDir?: string,
+	settings?: SkillsSettings,
+): { skills: Skill[]; warnings: SkillWarning[] } {
+	return loadSkillsInternal({
 		...settings,
 		cwd: cwd ?? process.cwd(),
 		agentDir: agentDir ?? getDefaultAgentDir(),
 	});
-	return skills;
 }
 
 /**
@@ -419,7 +422,16 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 		thinkingLevel = "off";
 	}
 
-	const skills = options.skills ?? discoverSkills(cwd, agentDir, settingsManager.getSkillsSettings());
+	let skills: Skill[];
+	let skillWarnings: SkillWarning[];
+	if (options.skills !== undefined) {
+		skills = options.skills;
+		skillWarnings = [];
+	} else {
+		const discovered = discoverSkills(cwd, agentDir, settingsManager.getSkillsSettings());
+		skills = discovered.skills;
+		skillWarnings = discovered.warnings;
+	}
 	time("discoverSkills");
 
 	const contextFiles = options.contextFiles ?? discoverContextFiles(cwd, agentDir);
@@ -514,7 +526,10 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 	}
 
 	// Initially active tools = active built-in + extension tools
-	let activeToolsArray: Tool[] = [...initialActiveBuiltInTools, ...wrappedExtensionTools];
+	// Extension tools can override built-in tools with the same name
+	const extensionToolNames = new Set(wrappedExtensionTools.map((t) => t.name));
+	const nonOverriddenBuiltInTools = initialActiveBuiltInTools.filter((t) => !extensionToolNames.has(t.name));
+	let activeToolsArray: Tool[] = [...nonOverriddenBuiltInTools, ...wrappedExtensionTools];
 	time("combineTools");
 
 	// Wrap tools with extensions if available
@@ -546,14 +561,8 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 		if (options.systemPrompt === undefined) {
 			return defaultPrompt;
 		} else if (typeof options.systemPrompt === "string") {
-			return buildSystemPromptInternal({
-				cwd,
-				agentDir,
-				skills,
-				contextFiles,
-				selectedTools: validToolNames,
-				customPrompt: options.systemPrompt,
-			});
+			// String is a full replacement - use as-is without appending context/skills
+			return options.systemPrompt;
 		} else {
 			return options.systemPrompt(defaultPrompt);
 		}
@@ -651,6 +660,8 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 		scopedModels: options.scopedModels,
 		promptTemplates: promptTemplates,
 		extensionRunner,
+		skills,
+		skillWarnings,
 		skillsSettings: settingsManager.getSkillsSettings(),
 		modelRegistry,
 		toolRegistry: wrappedToolRegistry ?? toolRegistry,

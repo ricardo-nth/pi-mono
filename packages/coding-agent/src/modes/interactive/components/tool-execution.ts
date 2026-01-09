@@ -13,6 +13,7 @@ import {
 import stripAnsi from "strip-ansi";
 import type { ToolDefinition } from "../../../core/extensions/types.js";
 import { computeEditDiff, type EditDiffError, type EditDiffResult } from "../../../core/tools/edit-diff.js";
+import { allTools } from "../../../core/tools/index.js";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize } from "../../../core/tools/truncate.js";
 import { convertToPng } from "../../../utils/image-convert.js";
 import { sanitizeBinaryOutput } from "../../../utils/shell.js";
@@ -94,13 +95,26 @@ export class ToolExecutionComponent extends Container {
 		this.contentBox = new Box(1, 1, (text: string) => theme.bg("toolPendingBg", text));
 		this.contentText = new Text("", 1, 1, (text: string) => theme.bg("toolPendingBg", text));
 
-		if (toolDefinition || toolName === "bash") {
+		// Use contentBox for bash (visual truncation) or custom tools with custom renderers
+		// Use contentText for built-in tools (including overrides without custom renderers)
+		if (toolName === "bash" || (toolDefinition && !this.shouldUseBuiltInRenderer())) {
 			this.addChild(this.contentBox);
 		} else {
 			this.addChild(this.contentText);
 		}
 
 		this.updateDisplay();
+	}
+
+	/**
+	 * Check if we should use built-in rendering for this tool.
+	 * Returns true if the tool name is a built-in AND either there's no toolDefinition
+	 * or the toolDefinition doesn't provide custom renderers.
+	 */
+	private shouldUseBuiltInRenderer(): boolean {
+		const isBuiltInName = this.toolName in allTools;
+		const hasCustomRenderers = this.toolDefinition?.renderCall || this.toolDefinition?.renderResult;
+		return isBuiltInName && !hasCustomRenderers;
 	}
 
 	updateArgs(args: any): void {
@@ -205,6 +219,11 @@ export class ToolExecutionComponent extends Container {
 		this.updateDisplay();
 	}
 
+	override invalidate(): void {
+		super.invalidate();
+		this.updateDisplay();
+	}
+
 	private updateDisplay(): void {
 		// Set background based on state
 		const bgFn = this.isPartial
@@ -213,8 +232,19 @@ export class ToolExecutionComponent extends Container {
 				? (text: string) => theme.bg("toolErrorBg", text)
 				: (text: string) => theme.bg("toolSuccessBg", text);
 
-		// Check for custom tool rendering
-		if (this.toolDefinition) {
+		// Use built-in rendering for built-in tools (or overrides without custom renderers)
+		if (this.shouldUseBuiltInRenderer()) {
+			if (this.toolName === "bash") {
+				// Bash uses Box with visual line truncation
+				this.contentBox.setBgFn(bgFn);
+				this.contentBox.clear();
+				this.renderBashContent();
+			} else {
+				// Other built-in tools: use Text directly with caching
+				this.contentText.setCustomBgFn(bgFn);
+				this.contentText.setText(this.formatToolExecution());
+			}
+		} else if (this.toolDefinition) {
 			// Custom tools use Box for flexible component rendering
 			this.contentBox.setBgFn(bgFn);
 			this.contentBox.clear();
@@ -260,15 +290,6 @@ export class ToolExecutionComponent extends Container {
 					this.contentBox.addChild(new Text(theme.fg("toolOutput", output), 0, 0));
 				}
 			}
-		} else if (this.toolName === "bash") {
-			// Bash uses Box with visual line truncation
-			this.contentBox.setBgFn(bgFn);
-			this.contentBox.clear();
-			this.renderBashContent();
-		} else {
-			// Other built-in tools: use Text directly with caching
-			this.contentText.setCustomBgFn(bgFn);
-			this.contentText.setText(this.formatToolExecution());
 		}
 
 		// Handle images (same for both custom and built-in)
@@ -339,24 +360,29 @@ export class ToolExecutionComponent extends Container {
 					// Show all lines when expanded
 					this.contentBox.addChild(new Text(`\n${styledOutput}`, 0, 0));
 				} else {
-					// Use visual line truncation when collapsed
-					// Box has paddingX=1, so content width = terminal.columns - 2
-					const { visualLines, skippedCount } = truncateToVisualLines(
-						`\n${styledOutput}`,
-						BASH_PREVIEW_LINES,
-						this.ui.terminal.columns - 2,
-					);
+					// Use visual line truncation when collapsed with width-aware caching
+					const textContent = `\n${styledOutput}`;
+					let cachedWidth: number | undefined;
+					let cachedLines: string[] | undefined;
+					let cachedSkipped: number | undefined;
 
-					if (skippedCount > 0) {
-						this.contentBox.addChild(
-							new Text(theme.fg("toolOutput", `\n... (${skippedCount} earlier lines)`), 0, 0),
-						);
-					}
-
-					// Add pre-rendered visual lines as a raw component
 					this.contentBox.addChild({
-						render: () => visualLines,
-						invalidate: () => {},
+						render: (width: number) => {
+							if (cachedLines === undefined || cachedWidth !== width) {
+								const result = truncateToVisualLines(textContent, BASH_PREVIEW_LINES, width);
+								cachedLines = result.visualLines;
+								cachedSkipped = result.skippedCount;
+								cachedWidth = width;
+							}
+							return cachedSkipped && cachedSkipped > 0
+								? ["", theme.fg("toolOutput", `... (${cachedSkipped} earlier lines)`), ...cachedLines]
+								: cachedLines;
+						},
+						invalidate: () => {
+							cachedWidth = undefined;
+							cachedLines = undefined;
+							cachedSkipped = undefined;
+						},
 					});
 				}
 			}

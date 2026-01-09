@@ -30,6 +30,8 @@ cp permission-gate.ts ~/.pi/agent/extensions/
 | `todo.ts` | Todo list tool + `/todos` command with custom rendering and state persistence |
 | `hello.ts` | Minimal custom tool example |
 | `question.ts` | Demonstrates `ctx.ui.select()` for asking the user questions |
+| `tool-override.ts` | Override built-in tools (e.g., add logging/access control to `read`) |
+| `ssh.ts` | Delegate all tools to a remote machine via SSH using pluggable operations |
 | `subagent/` | Delegate tasks to specialized subagents with isolated context windows |
 
 ### Commands & UI

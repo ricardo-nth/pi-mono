@@ -18,6 +18,7 @@ import type { ImageContent, Model, TextContent, ToolResultMessage } from "@mario
 import type { Component, EditorComponent, EditorTheme, KeyId, TUI } from "@mariozechner/pi-tui";
 import type { Static, TSchema } from "@sinclair/typebox";
 import type { Theme } from "../../modes/interactive/theme/theme.js";
+import type { BashResult } from "../bash-executor.js";
 import type { CompactionPreparation, CompactionResult } from "../compaction/index.js";
 import type { EventBus } from "../event-bus.js";
 import type { ExecOptions, ExecResult } from "../exec.js";
@@ -31,6 +32,7 @@ import type {
 	SessionEntry,
 	SessionManager,
 } from "../session-manager.js";
+import type { BashOperations } from "../tools/bash.js";
 import type { EditToolDetails } from "../tools/edit.js";
 import type {
 	BashToolDetails,
@@ -97,6 +99,7 @@ export interface ExtensionUIContext {
 			keybindings: KeybindingsManager,
 			done: (result: T) => void,
 		) => (Component & { dispose?(): void }) | Promise<Component & { dispose?(): void }>,
+		options?: { overlay?: boolean },
 	): Promise<T>;
 
 	/** Set the text in the core input editor. */
@@ -147,6 +150,15 @@ export interface ExtensionUIContext {
 
 	/** Get the current theme for styling. */
 	readonly theme: Theme;
+
+	/** Get all available themes with their names and file paths. */
+	getAllThemes(): { name: string; path: string | undefined }[];
+
+	/** Load a theme by name without switching to it. Returns undefined if not found. */
+	getTheme(name: string): Theme | undefined;
+
+	/** Set the current theme by name or Theme object. */
+	setTheme(theme: string | Theme): { success: boolean; error?: string };
 }
 
 // ============================================================================
@@ -349,6 +361,7 @@ export interface BeforeAgentStartEvent {
 	type: "before_agent_start";
 	prompt: string;
 	images?: ImageContent[];
+	systemPrompt: string;
 }
 
 /** Fired when an agent loop starts */
@@ -375,6 +388,21 @@ export interface TurnEndEvent {
 	turnIndex: number;
 	message: AgentMessage;
 	toolResults: ToolResultMessage[];
+}
+
+// ============================================================================
+// User Bash Events
+// ============================================================================
+
+/** Fired when user executes a bash command via ! or !! prefix */
+export interface UserBashEvent {
+	type: "user_bash";
+	/** The command to execute */
+	command: string;
+	/** True if !! prefix was used (excluded from LLM context) */
+	excludeFromContext: boolean;
+	/** Current working directory */
+	cwd: string;
 }
 
 // ============================================================================
@@ -480,6 +508,7 @@ export type ExtensionEvent =
 	| AgentEndEvent
 	| TurnStartEvent
 	| TurnEndEvent
+	| UserBashEvent
 	| ToolCallEvent
 	| ToolResultEvent;
 
@@ -496,6 +525,14 @@ export interface ToolCallEventResult {
 	reason?: string;
 }
 
+/** Result from user_bash event handler */
+export interface UserBashEventResult {
+	/** Custom operations to use for execution */
+	operations?: BashOperations;
+	/** Full replacement: extension handled execution, use this result */
+	result?: BashResult;
+}
+
 export interface ToolResultEventResult {
 	content?: (TextContent | ImageContent)[];
 	details?: unknown;
@@ -504,7 +541,8 @@ export interface ToolResultEventResult {
 
 export interface BeforeAgentStartEventResult {
 	message?: Pick<CustomMessage, "customType" | "content" | "display" | "details">;
-	systemPromptAppend?: string;
+	/** Replace the system prompt for this turn. If multiple extensions return this, they are chained. */
+	systemPrompt?: string;
 }
 
 export interface SessionBeforeSwitchResult {
@@ -596,6 +634,7 @@ export interface ExtensionAPI {
 	on(event: "turn_end", handler: ExtensionHandler<TurnEndEvent>): void;
 	on(event: "tool_call", handler: ExtensionHandler<ToolCallEvent, ToolCallEventResult>): void;
 	on(event: "tool_result", handler: ExtensionHandler<ToolResultEvent, ToolResultEventResult>): void;
+	on(event: "user_bash", handler: ExtensionHandler<UserBashEvent, UserBashEventResult>): void;
 
 	// =========================================================================
 	// Tool Registration

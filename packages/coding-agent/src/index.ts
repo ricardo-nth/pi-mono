@@ -83,6 +83,8 @@ export type {
 	ToolResultEvent,
 	TurnEndEvent,
 	TurnStartEvent,
+	UserBashEvent,
+	UserBashEventResult,
 } from "./core/extensions/index.js";
 export {
 	createExtensionRuntime,
@@ -176,19 +178,31 @@ export {
 } from "./core/skills.js";
 // Tools
 export {
+	type BashOperations,
 	type BashToolDetails,
+	type BashToolOptions,
 	bashTool,
 	codingTools,
 	DEFAULT_MAX_BYTES,
 	DEFAULT_MAX_LINES,
+	type EditOperations,
+	type EditToolDetails,
+	type EditToolOptions,
 	editTool,
+	type FindOperations,
 	type FindToolDetails,
+	type FindToolOptions,
 	findTool,
 	formatSize,
+	type GrepOperations,
 	type GrepToolDetails,
+	type GrepToolOptions,
 	grepTool,
+	type LsOperations,
 	type LsToolDetails,
+	type LsToolOptions,
 	lsTool,
+	type ReadOperations,
 	type ReadToolDetails,
 	type ReadToolOptions,
 	readTool,
@@ -198,6 +212,8 @@ export {
 	truncateHead,
 	truncateLine,
 	truncateTail,
+	type WriteOperations,
+	type WriteToolOptions,
 	writeTool,
 } from "./core/tools/index.js";
 // Main entry point
@@ -250,6 +266,7 @@ export {
 	getMarkdownTheme,
 	getSelectListTheme,
 	getSettingsListTheme,
+	initTheme,
 	Theme,
 	type ThemeColor,
 } from "./modes/interactive/theme/theme.js";

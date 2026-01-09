@@ -209,7 +209,7 @@ export function buildSystemPrompt(options: BuildSystemPromptOptions = {}): strin
 
 	// Build tools list based on selected tools
 	const tools = selectedTools || (["read", "bash", "edit", "write"] as ToolName[]);
-	const toolsList = tools.map((t) => `- ${t}: ${toolDescriptions[t]}`).join("\n");
+	const toolsList = tools.length > 0 ? tools.map((t) => `- ${t}: ${toolDescriptions[t]}`).join("\n") : "(none)";
 
 	// Build guidelines based on which tools are actually available
 	const guidelinesList: string[] = [];
@@ -221,11 +221,6 @@ export function buildSystemPrompt(options: BuildSystemPromptOptions = {}): strin
 	const hasFind = tools.includes("find");
 	const hasLs = tools.includes("ls");
 	const hasRead = tools.includes("read");
-
-	// Read-only mode notice (no bash, edit, or write)
-	if (!hasBash && !hasEdit && !hasWrite) {
-		guidelinesList.push("You are in READ-ONLY mode - you cannot modify files or execute arbitrary commands");
-	}
 
 	// Bash without edit/write = read-only bash mode
 	if (hasBash && !hasEdit && !hasWrite) {

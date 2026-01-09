@@ -255,7 +255,7 @@ pi starts
       ▼
 user sends prompt ─────────────────────────────────────────┐
   │                                                        │
-  ├─► before_agent_start (can inject message, append to system prompt)
+  ├─► before_agent_start (can inject message, modify system prompt)
   ├─► agent_start                                          │
   │                                                        │
   │   ┌─── turn (repeats while LLM calls tools) ───┐       │
@@ -414,12 +414,13 @@ pi.on("session_shutdown", async (_event, ctx) => {
 
 #### before_agent_start
 
-Fired after user submits prompt, before agent loop. Can inject a message and/or append to the system prompt.
+Fired after user submits prompt, before agent loop. Can inject a message and/or modify the system prompt.
 
 ```typescript
 pi.on("before_agent_start", async (event, ctx) => {
   // event.prompt - user's prompt text
   // event.images - attached images (if any)
+  // event.systemPrompt - current system prompt
 
   return {
     // Inject a persistent message (stored in session, sent to LLM)
@@ -428,13 +429,13 @@ pi.on("before_agent_start", async (event, ctx) => {
       content: "Additional context for the LLM",
       display: true,
     },
-    // Append to system prompt for this turn only
-    systemPromptAppend: "Extra instructions for this turn...",
+    // Replace the system prompt for this turn (chained across extensions)
+    systemPrompt: event.systemPrompt + "\n\nExtra instructions for this turn...",
   };
 });
 ```
 
-**Examples:** [claude-rules.ts](../examples/extensions/claude-rules.ts), [pirate.ts](../examples/extensions/pirate.ts), [plan-mode.ts](../examples/extensions/plan-mode.ts), [preset.ts](../examples/extensions/preset.ts)
+**Examples:** [claude-rules.ts](../examples/extensions/claude-rules.ts), [pirate.ts](../examples/extensions/pirate.ts), [plan-mode.ts](../examples/extensions/plan-mode.ts), [preset.ts](../examples/extensions/preset.ts), [ssh.ts](../examples/extensions/ssh.ts)
 
 #### agent_start / agent_end
 
@@ -521,6 +522,28 @@ pi.on("tool_result", async (event, ctx) => {
 ```
 
 **Examples:** [git-checkpoint.ts](../examples/extensions/git-checkpoint.ts), [plan-mode.ts](../examples/extensions/plan-mode.ts)
+
+### User Bash Events
+
+#### user_bash
+
+Fired when user executes `!` or `!!` commands. **Can intercept.**
+
+```typescript
+pi.on("user_bash", (event, ctx) => {
+  // event.command - the bash command
+  // event.excludeFromContext - true if !! prefix
+  // event.cwd - working directory
+
+  // Option 1: Provide custom operations (e.g., SSH)
+  return { operations: remoteBashOps };
+
+  // Option 2: Full replacement - return result directly
+  return { result: { output: "...", exitCode: 0, cancelled: false, truncated: false } };
+});
+```
+
+**Examples:** [ssh.ts](../examples/extensions/ssh.ts), [interactive-shell.ts](../examples/extensions/interactive-shell.ts)
 
 ## ExtensionContext
 
@@ -946,6 +969,21 @@ pi.registerTool({
 
 Extensions can override built-in tools (`read`, `bash`, `edit`, `write`, `grep`, `find`, `ls`) by registering a tool with the same name. Interactive mode displays a warning when this happens.
 
+```bash
+# Extension's read tool replaces built-in read
+pi -e ./tool-override.ts
+```
+
+Alternatively, use `--no-tools` to start without any built-in tools:
+```bash
+# No built-in tools, only extension tools
+pi --no-tools -e ./my-extension.ts
+```
+
+See [examples/extensions/tool-override.ts](../examples/extensions/tool-override.ts) for a complete example that overrides `read` with logging and access control.
+
+**Rendering:** If your override doesn't provide custom `renderCall`/`renderResult` functions, the built-in renderer is used automatically (syntax highlighting, diffs, etc.). This lets you wrap built-in tools for logging or access control without reimplementing the UI.
+
 **Your implementation must match the exact result shape**, including the `details` type. The UI and session logic depend on these shapes for rendering and state tracking.
 
 Built-in tool implementations:
@@ -956,6 +994,39 @@ Built-in tool implementations:
 - [grep.ts](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/src/core/tools/grep.ts) - `GrepToolDetails`
 - [find.ts](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/src/core/tools/find.ts) - `FindToolDetails`
 - [ls.ts](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/src/core/tools/ls.ts) - `LsToolDetails`
+
+### Remote Execution
+
+Built-in tools support pluggable operations for delegating to remote systems (SSH, containers, etc.):
+
+```typescript
+import { createReadTool, createBashTool, type ReadOperations } from "@mariozechner/pi-coding-agent";
+
+// Create tool with custom operations
+const remoteRead = createReadTool(cwd, {
+  operations: {
+    readFile: (path) => sshExec(remote, `cat ${path}`),
+    access: (path) => sshExec(remote, `test -r ${path}`).then(() => {}),
+  }
+});
+
+// Register, checking flag at execution time
+pi.registerTool({
+  ...remoteRead,
+  async execute(id, params, onUpdate, _ctx, signal) {
+    const ssh = getSshConfig();
+    if (ssh) {
+      const tool = createReadTool(cwd, { operations: createRemoteOps(ssh) });
+      return tool.execute(id, params, signal, onUpdate);
+    }
+    return localRead.execute(id, params, signal, onUpdate);
+  },
+});
+```
+
+**Operations interfaces:** `ReadOperations`, `WriteOperations`, `EditOperations`, `BashOperations`, `LsOperations`, `GrepOperations`, `FindOperations`
+
+See [examples/extensions/ssh.ts](../examples/extensions/ssh.ts) for a complete SSH example with `--ssh` flag.
 
 ### Output Truncation
 
@@ -1207,6 +1278,16 @@ const current = ctx.ui.getEditorText();
 // Custom editor (vim mode, emacs mode, etc.)
 ctx.ui.setEditorComponent((tui, theme, keybindings) => new VimEditor(tui, theme, keybindings));
 ctx.ui.setEditorComponent(undefined);  // Restore default editor
+
+// Theme management
+const themes = ctx.ui.getAllThemes();  // [{ name: "dark", path: "/..." | undefined }, ...]
+const lightTheme = ctx.ui.getTheme("light");  // Load without switching
+const result = ctx.ui.setTheme("light");  // Switch by name
+if (!result.success) {
+  ctx.ui.notify(`Failed: ${result.error}`, "error");
+}
+ctx.ui.setTheme(lightTheme!);  // Or switch by Theme object
+ctx.ui.theme.fg("accent", "styled text");  // Access current theme
 ```
 
 **Examples:**
@@ -1215,6 +1296,7 @@ ctx.ui.setEditorComponent(undefined);  // Restore default editor
 - `ctx.ui.setFooter()`: [custom-footer.ts](../examples/extensions/custom-footer.ts)
 - `ctx.ui.setHeader()`: [custom-header.ts](../examples/extensions/custom-header.ts)
 - `ctx.ui.setEditorComponent()`: [modal-editor.ts](../examples/extensions/modal-editor.ts)
+- `ctx.ui.setTheme()`: [mac-system-theme.ts](../examples/extensions/mac-system-theme.ts)
 
 ### Custom Components
 
@@ -1248,7 +1330,20 @@ The callback receives:
 
 See [tui.md](tui.md) for the full component API.
 
-**Examples:** [handoff.ts](../examples/extensions/handoff.ts), [plan-mode.ts](../examples/extensions/plan-mode.ts), [preset.ts](../examples/extensions/preset.ts), [qna.ts](../examples/extensions/qna.ts), [snake.ts](../examples/extensions/snake.ts), [todo.ts](../examples/extensions/todo.ts), [tools.ts](../examples/extensions/tools.ts)
+#### Overlay Mode (Experimental)
+
+Pass `{ overlay: true }` to render the component as a floating modal on top of existing content, without clearing the screen:
+
+```typescript
+const result = await ctx.ui.custom<string | null>(
+  (tui, theme, keybindings, done) => new MyOverlayComponent({ onClose: done }),
+  { overlay: true }
+);
+```
+
+Overlay components should define a `width` property to control their size. The overlay is centered by default. See [overlay-test.ts](../examples/extensions/overlay-test.ts) for a complete example.
+
+**Examples:** [handoff.ts](../examples/extensions/handoff.ts), [plan-mode.ts](../examples/extensions/plan-mode.ts), [preset.ts](../examples/extensions/preset.ts), [qna.ts](../examples/extensions/qna.ts), [snake.ts](../examples/extensions/snake.ts), [todo.ts](../examples/extensions/todo.ts), [tools.ts](../examples/extensions/tools.ts), [overlay-test.ts](../examples/extensions/overlay-test.ts)
 
 ### Custom Editor
 
