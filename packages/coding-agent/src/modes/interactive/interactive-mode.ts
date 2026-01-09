@@ -651,13 +651,7 @@ export class InteractiveMode {
 		// Set up extension-registered shortcuts
 		this.setupExtensionShortcuts(extensionRunner);
 
-		// Show loaded extensions
-		const extensionPaths = extensionRunner.getExtensionPaths();
-		if (extensionPaths.length > 0) {
-			const extList = extensionPaths.map((p) => theme.fg("dim", `  ${p}`)).join("\n");
-			this.chatContainer.addChild(new Text(theme.fg("muted", "Loaded extensions:\n") + extList, 0, 0));
-			this.chatContainer.addChild(new Spacer(1));
-		}
+		// Note: Extensions are shown in the welcome screen, not here
 
 		// Warn about built-in tool overrides
 		const builtInToolNames = new Set(Object.keys(allTools));
