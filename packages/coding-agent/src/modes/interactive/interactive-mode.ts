@@ -64,6 +64,7 @@ import { ExtensionEditorComponent } from "./components/extension-editor.js";
 import { ExtensionInputComponent } from "./components/extension-input.js";
 import { ExtensionSelectorComponent } from "./components/extension-selector.js";
 import { FooterComponent } from "./components/footer.js";
+import { HotkeysPopupComponent } from "./components/hotkeys-popup.js";
 import { LoginDialogComponent } from "./components/login-dialog.js";
 import { ModelSelectorComponent } from "./components/model-selector.js";
 import { OAuthSelectorComponent } from "./components/oauth-selector.js";
@@ -1249,6 +1250,12 @@ export class InteractiveMode {
 		// Register app action handlers
 		this.defaultEditor.onAction("clear", () => this.handleCtrlC());
 		this.defaultEditor.onCtrlD = () => this.handleCtrlD();
+
+		// Handle ? for help (when editor is empty)
+		this.defaultEditor.onHelp = () => {
+			this.showHotkeysPopup();
+		};
+
 		this.defaultEditor.onAction("suspend", () => this.handleCtrlZ());
 		this.defaultEditor.onAction("cycleThinkingLevel", () => this.cycleThinkingLevel());
 		this.defaultEditor.onAction("cycleModelForward", () => this.cycleModel("forward"));
@@ -2407,6 +2414,26 @@ export class InteractiveMode {
 				},
 			);
 			return { component: selector, focus: selector.getSettingsList() };
+		});
+	}
+
+	private showHotkeysPopup(): void {
+		this.showSelector((done) => {
+			const extensionRunner = this.session.extensionRunner;
+			const extensionShortcuts = extensionRunner ? extensionRunner.getShortcuts() : undefined;
+
+			const popup = new HotkeysPopupComponent(
+				{
+					editorKeyDisplay: (action) => this.getEditorKeyDisplay(action as any),
+					appKeyDisplay: (action) => this.getAppKeyDisplay(action as any),
+					extensionShortcuts,
+				},
+				() => {
+					done();
+					this.ui.requestRender();
+				},
+			);
+			return { component: popup, focus: popup };
 		});
 	}
 
