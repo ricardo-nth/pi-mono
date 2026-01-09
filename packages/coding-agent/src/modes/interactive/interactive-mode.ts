@@ -65,6 +65,7 @@ import { ExtensionInputComponent } from "./components/extension-input.js";
 import { ExtensionSelectorComponent } from "./components/extension-selector.js";
 import { FooterComponent } from "./components/footer.js";
 import { HotkeysPopupComponent } from "./components/hotkeys-popup.js";
+import { InfoViewerComponent } from "./components/info-viewer.js";
 import { LoginDialogComponent } from "./components/login-dialog.js";
 import { ModelSelectorComponent } from "./components/model-selector.js";
 import { OAuthSelectorComponent } from "./components/oauth-selector.js";
@@ -249,6 +250,9 @@ export class InteractiveMode {
 		const slashCommands: SlashCommand[] = [
 			{ name: "settings", description: "Open settings menu" },
 			{ name: "model", description: "Select model (opens selector UI)" },
+			{ name: "context", description: "Show loaded context files" },
+			{ name: "skills", description: "Show loaded skills" },
+			{ name: "extensions", description: "Show loaded extensions" },
 			{ name: "export", description: "Export session to HTML file" },
 			{ name: "share", description: "Share session as a secret GitHub gist" },
 			{ name: "copy", description: "Copy last agent message to clipboard" },
@@ -1312,6 +1316,21 @@ export class InteractiveMode {
 			}
 			if (text === "/model") {
 				this.showModelSelector();
+				this.editor.setText("");
+				return;
+			}
+			if (text === "/context") {
+				this.showContextViewer();
+				this.editor.setText("");
+				return;
+			}
+			if (text === "/skills") {
+				this.showSkillsViewer();
+				this.editor.setText("");
+				return;
+			}
+			if (text === "/extensions") {
+				this.showExtensionsViewer();
 				this.editor.setText("");
 				return;
 			}
@@ -2428,6 +2447,72 @@ export class InteractiveMode {
 				},
 			);
 			return { component: popup, focus: popup };
+		});
+	}
+
+	private showContextViewer(): void {
+		const contextFiles = loadProjectContextFiles();
+		this.showSelector((done) => {
+			const viewer = new InfoViewerComponent(
+				{
+					title: "Loaded Context",
+					subtitle: `${contextFiles.length} file(s)`,
+					items: contextFiles.map((f) => ({
+						label: f.path,
+						detail: `${f.content.length} chars`,
+					})),
+					emptyMessage: "No context files loaded",
+				},
+				() => {
+					done();
+					this.ui.requestRender();
+				},
+			);
+			return { component: viewer, focus: viewer };
+		});
+	}
+
+	private showSkillsViewer(): void {
+		const skills = this.session.skills;
+		this.showSelector((done) => {
+			const viewer = new InfoViewerComponent(
+				{
+					title: "Loaded Skills",
+					subtitle: `${skills.length} skill(s)`,
+					items: skills.map((s) => ({
+						label: s.name,
+						detail: s.filePath,
+					})),
+					emptyMessage: "No skills loaded",
+				},
+				() => {
+					done();
+					this.ui.requestRender();
+				},
+			);
+			return { component: viewer, focus: viewer };
+		});
+	}
+
+	private showExtensionsViewer(): void {
+		const extensionPaths = this.session.extensionRunner?.getExtensionPaths() ?? [];
+		this.showSelector((done) => {
+			const viewer = new InfoViewerComponent(
+				{
+					title: "Loaded Extensions",
+					subtitle: `${extensionPaths.length} extension(s)`,
+					items: extensionPaths.map((p) => ({
+						label: p.split("/").pop() ?? p,
+						detail: p,
+					})),
+					emptyMessage: "No extensions loaded",
+				},
+				() => {
+					done();
+					this.ui.requestRender();
+				},
+			);
+			return { component: viewer, focus: viewer };
 		});
 	}
 
