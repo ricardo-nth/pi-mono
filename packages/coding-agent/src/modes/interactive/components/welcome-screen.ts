@@ -41,7 +41,7 @@ interface ContextFile {
 
 interface WelcomeScreenConfig {
 	contextFiles: ContextFile[];
-	skills: Skill[];
+	skills: readonly Skill[];
 	extensionPaths: string[];
 	terminalWidth?: number;
 }
