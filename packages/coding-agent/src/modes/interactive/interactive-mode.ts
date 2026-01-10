@@ -520,23 +520,8 @@ export class InteractiveMode {
 	 * Initialize the extension system with TUI-based UI context.
 	 */
 	private async initExtensions(): Promise<void> {
-		// Show loaded project context files
-		const contextFiles = loadProjectContextFiles();
-		if (contextFiles.length > 0) {
-			const contextList = contextFiles.map((f) => theme.fg("dim", `  ${f.path}`)).join("\n");
-			this.chatContainer.addChild(new Text(theme.fg("muted", "Loaded context:\n") + contextList, 0, 0));
-			this.chatContainer.addChild(new Spacer(1));
-		}
-
-		// Show loaded skills (already discovered by SDK)
-		const skills = this.session.skills;
-		if (skills.length > 0) {
-			const skillList = skills.map((s) => theme.fg("dim", `  ${s.filePath}`)).join("\n");
-			this.chatContainer.addChild(new Text(theme.fg("muted", "Loaded skills:\n") + skillList, 0, 0));
-			this.chatContainer.addChild(new Spacer(1));
-		}
-
-		// Show skill warnings if any
+		// Show skill warnings if any (keep these visible - they're actionable)
+		// Context and skills are shown in the welcome screen
 		const skillWarnings = this.session.skillWarnings;
 		if (skillWarnings.length > 0) {
 			const warningList = skillWarnings.map((w) => theme.fg("warning", `  ${w.skillPath}: ${w.message}`)).join("\n");
@@ -674,13 +659,7 @@ export class InteractiveMode {
 		// Set up extension-registered shortcuts
 		this.setupExtensionShortcuts(extensionRunner);
 
-		// Show loaded extensions
-		const extensionPaths = extensionRunner.getExtensionPaths();
-		if (extensionPaths.length > 0) {
-			const extList = extensionPaths.map((p) => theme.fg("dim", `  ${p}`)).join("\n");
-			this.chatContainer.addChild(new Text(theme.fg("muted", "Loaded extensions:\n") + extList, 0, 0));
-			this.chatContainer.addChild(new Spacer(1));
-		}
+		// Note: Extensions are shown in the welcome screen, not here
 
 		// Warn about built-in tool overrides
 		const builtInToolNames = new Set(Object.keys(allTools));
