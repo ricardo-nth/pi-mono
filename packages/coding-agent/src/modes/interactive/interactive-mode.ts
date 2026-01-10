@@ -54,6 +54,7 @@ import { extensionForImageMimeType, readClipboardImage } from "../../utils/clipb
 import { ensureTool } from "../../utils/tools-manager.js";
 import { ArminComponent } from "./components/armin.js";
 import { AssistantMessageComponent } from "./components/assistant-message.js";
+import { AutocompletePopup } from "./components/autocomplete-popup.js";
 import { BashExecutionComponent } from "./components/bash-execution.js";
 import { BorderedLoader } from "./components/bordered-loader.js";
 import { BranchSummaryMessageComponent } from "./components/branch-summary-message.js";
@@ -65,6 +66,8 @@ import { ExtensionEditorComponent } from "./components/extension-editor.js";
 import { ExtensionInputComponent } from "./components/extension-input.js";
 import { ExtensionSelectorComponent } from "./components/extension-selector.js";
 import { FooterComponent } from "./components/footer.js";
+import { HotkeysPopupComponent } from "./components/hotkeys-popup.js";
+import { InfoViewerComponent } from "./components/info-viewer.js";
 import { LoginDialogComponent } from "./components/login-dialog.js";
 import { ModelSelectorComponent } from "./components/model-selector.js";
 import { OAuthSelectorComponent } from "./components/oauth-selector.js";
@@ -74,6 +77,7 @@ import { ToolExecutionComponent } from "./components/tool-execution.js";
 import { TreeSelectorComponent } from "./components/tree-selector.js";
 import { UserMessageComponent } from "./components/user-message.js";
 import { UserMessageSelectorComponent } from "./components/user-message-selector.js";
+import { WelcomeScreenComponent } from "./components/welcome-screen.js";
 import {
 	getAvailableThemes,
 	getAvailableThemesWithPaths,
@@ -192,6 +196,10 @@ export class InteractiveMode {
 	private extensionWidgets = new Map<string, Component & { dispose?(): void }>();
 	private widgetContainer!: Container;
 
+	// Autocomplete popup container (renders above editor)
+	private autocompleteContainer!: Container;
+	private autocompletePopup!: AutocompletePopup;
+
 	// Custom footer from extension (undefined = use built-in footer)
 	private customFooter: (Component & { dispose?(): void }) | undefined = undefined;
 
@@ -223,6 +231,8 @@ export class InteractiveMode {
 		this.pendingMessagesContainer = new Container();
 		this.statusContainer = new Container();
 		this.widgetContainer = new Container();
+		this.autocompleteContainer = new Container();
+		this.autocompletePopup = new AutocompletePopup();
 		this.keybindings = KeybindingsManager.create();
 		this.defaultEditor = new CustomEditor(getEditorTheme(), this.keybindings);
 		this.editor = this.defaultEditor;
@@ -250,6 +260,9 @@ export class InteractiveMode {
 			{ name: "session", description: "Show session info and stats" },
 			{ name: "changelog", description: "Show changelog entries" },
 			{ name: "hotkeys", description: "Show all keyboard shortcuts" },
+			{ name: "context", description: "Show loaded context files" },
+			{ name: "skills", description: "Show loaded skills" },
+			{ name: "extensions", description: "Show loaded extensions" },
 			{ name: "branch", description: "Create a new branch from a previous message" },
 			{ name: "tree", description: "Navigate session tree (switch branches)" },
 			{ name: "login", description: "Login with OAuth provider" },
@@ -292,89 +305,17 @@ export class InteractiveMode {
 		const fdPath = await ensureTool("fd");
 		this.setupAutocomplete(fdPath);
 
-		// Add header with keybindings from config
-		const logo = theme.bold(theme.fg("accent", APP_NAME)) + theme.fg("dim", ` v${this.version}`);
-
-		// Format keybinding for startup display (lowercase, compact)
-		const formatStartupKey = (keys: string | string[]): string => {
-			const keyArray = Array.isArray(keys) ? keys : [keys];
-			return keyArray.join("/");
-		};
-
-		const kb = this.keybindings;
-		const interrupt = formatStartupKey(kb.getKeys("interrupt"));
-		const clear = formatStartupKey(kb.getKeys("clear"));
-		const exit = formatStartupKey(kb.getKeys("exit"));
-		const suspend = formatStartupKey(kb.getKeys("suspend"));
-		const deleteToLineEnd = formatStartupKey(getEditorKeybindings().getKeys("deleteToLineEnd"));
-		const cycleThinkingLevel = formatStartupKey(kb.getKeys("cycleThinkingLevel"));
-		const cycleModelForward = formatStartupKey(kb.getKeys("cycleModelForward"));
-		const cycleModelBackward = formatStartupKey(kb.getKeys("cycleModelBackward"));
-		const selectModel = formatStartupKey(kb.getKeys("selectModel"));
-		const expandTools = formatStartupKey(kb.getKeys("expandTools"));
-		const toggleThinking = formatStartupKey(kb.getKeys("toggleThinking"));
-		const externalEditor = formatStartupKey(kb.getKeys("externalEditor"));
-		const followUp = formatStartupKey(kb.getKeys("followUp"));
-		const dequeue = formatStartupKey(kb.getKeys("dequeue"));
-
-		const instructions =
-			theme.fg("dim", interrupt) +
-			theme.fg("muted", " to interrupt") +
-			"\n" +
-			theme.fg("dim", clear) +
-			theme.fg("muted", " to clear") +
-			"\n" +
-			theme.fg("dim", `${clear} twice`) +
-			theme.fg("muted", " to exit") +
-			"\n" +
-			theme.fg("dim", exit) +
-			theme.fg("muted", " to exit (empty)") +
-			"\n" +
-			theme.fg("dim", suspend) +
-			theme.fg("muted", " to suspend") +
-			"\n" +
-			theme.fg("dim", deleteToLineEnd) +
-			theme.fg("muted", " to delete to end") +
-			"\n" +
-			theme.fg("dim", cycleThinkingLevel) +
-			theme.fg("muted", " to cycle thinking") +
-			"\n" +
-			theme.fg("dim", `${cycleModelForward}/${cycleModelBackward}`) +
-			theme.fg("muted", " to cycle models") +
-			"\n" +
-			theme.fg("dim", selectModel) +
-			theme.fg("muted", " to select model") +
-			"\n" +
-			theme.fg("dim", expandTools) +
-			theme.fg("muted", " to expand tools") +
-			"\n" +
-			theme.fg("dim", toggleThinking) +
-			theme.fg("muted", " to toggle thinking") +
-			"\n" +
-			theme.fg("dim", externalEditor) +
-			theme.fg("muted", " for external editor") +
-			"\n" +
-			theme.fg("dim", "/") +
-			theme.fg("muted", " for commands") +
-			"\n" +
-			theme.fg("dim", "!") +
-			theme.fg("muted", " to run bash") +
-			"\n" +
-			theme.fg("dim", "!!") +
-			theme.fg("muted", " to run bash (no context)") +
-			"\n" +
-			theme.fg("dim", followUp) +
-			theme.fg("muted", " to queue follow-up") +
-			"\n" +
-			theme.fg("dim", dequeue) +
-			theme.fg("muted", " to restore queued messages") +
-			"\n" +
-			theme.fg("dim", "ctrl+v") +
-			theme.fg("muted", " to paste image") +
-			"\n" +
-			theme.fg("dim", "drop files") +
-			theme.fg("muted", " to attach");
-		this.builtInHeader = new Text(`${logo}\n${instructions}`, 1, 0);
+		// Add welcome screen header
+		// NOTE: Startup hotkey instructions removed - they now live in HotkeysPopupComponent (? key).
+		// If upstream adds new hotkeys here, add them to hotkeys-popup.ts instead of restoring this block.
+		const contextFiles = loadProjectContextFiles();
+		const loadedSkills = this.session.skills;
+		const extensionPaths = this.session.extensionRunner?.getExtensionPaths() ?? [];
+		this.builtInHeader = new WelcomeScreenComponent({
+			contextFiles,
+			skills: loadedSkills,
+			extensionPaths,
+		});
 
 		// Setup UI layout
 		this.ui.addChild(new Spacer(1));
@@ -402,9 +343,26 @@ export class InteractiveMode {
 		this.ui.addChild(this.pendingMessagesContainer);
 		this.ui.addChild(this.statusContainer);
 		this.ui.addChild(this.widgetContainer);
+		this.ui.addChild(new Spacer(1));
+		this.ui.addChild(this.autocompleteContainer);
 		this.ui.addChild(this.editorContainer);
 		this.ui.addChild(this.footer);
 		this.ui.setFocus(this.editor);
+
+		// Wire up autocomplete rendering above the editor
+		this.defaultEditor.onAutocompleteChange = (isActive) => {
+			if (isActive) {
+				this.autocompletePopup.setSelectList(this.defaultEditor.getAutocompleteList());
+				// Only add to container if not already there
+				if (this.autocompleteContainer.children.length === 0) {
+					this.autocompleteContainer.addChild(this.autocompletePopup);
+				}
+			} else {
+				this.autocompleteContainer.clear();
+				this.autocompletePopup.setSelectList(undefined);
+			}
+			this.ui.requestRender();
+		};
 
 		this.setupKeyHandlers();
 		this.setupEditorSubmitHandler();
@@ -1313,6 +1271,12 @@ export class InteractiveMode {
 		// Register app action handlers
 		this.defaultEditor.onAction("clear", () => this.handleCtrlC());
 		this.defaultEditor.onCtrlD = () => this.handleCtrlD();
+
+		// Handle ? for help (when editor is empty)
+		this.defaultEditor.onHelp = () => {
+			this.showHotkeysPopup();
+		};
+
 		this.defaultEditor.onAction("suspend", () => this.handleCtrlZ());
 		this.defaultEditor.onAction("cycleThinkingLevel", () => this.cycleThinkingLevel());
 		this.defaultEditor.onAction("cycleModelForward", () => this.cycleModel("forward"));
@@ -1407,6 +1371,21 @@ export class InteractiveMode {
 			}
 			if (text === "/hotkeys") {
 				this.handleHotkeysCommand();
+				this.editor.setText("");
+				return;
+			}
+			if (text === "/context") {
+				this.showContextViewer();
+				this.editor.setText("");
+				return;
+			}
+			if (text === "/skills") {
+				this.showSkillsViewer();
+				this.editor.setText("");
+				return;
+			}
+			if (text === "/extensions") {
+				this.showExtensionsViewer();
 				this.editor.setText("");
 				return;
 			}
@@ -2506,6 +2485,92 @@ export class InteractiveMode {
 		});
 	}
 
+	private showHotkeysPopup(): void {
+		this.showSelector((done) => {
+			const extensionRunner = this.session.extensionRunner;
+			const extensionShortcuts = extensionRunner ? extensionRunner.getShortcuts() : undefined;
+
+			const popup = new HotkeysPopupComponent(
+				{
+					editorKeyDisplay: (action) => this.getEditorKeyDisplay(action as any),
+					appKeyDisplay: (action) => this.getAppKeyDisplay(action as any),
+					extensionShortcuts,
+				},
+				() => {
+					done();
+					this.ui.requestRender();
+				},
+			);
+			return { component: popup, focus: popup };
+		});
+	}
+
+	private showContextViewer(): void {
+		const contextFiles = loadProjectContextFiles();
+		this.showSelector((done) => {
+			const viewer = new InfoViewerComponent(
+				{
+					title: "Loaded Context",
+					subtitle: `${contextFiles.length} file(s)`,
+					items: contextFiles.map((f) => ({
+						label: f.path,
+						detail: `${f.content.length} chars`,
+					})),
+					emptyMessage: "No context files loaded",
+				},
+				() => {
+					done();
+					this.ui.requestRender();
+				},
+			);
+			return { component: viewer, focus: viewer };
+		});
+	}
+
+	private showSkillsViewer(): void {
+		const skills = this.session.skills;
+		this.showSelector((done) => {
+			const viewer = new InfoViewerComponent(
+				{
+					title: "Loaded Skills",
+					subtitle: `${skills.length} skill(s)`,
+					items: skills.map((s) => ({
+						label: s.name,
+						detail: s.filePath,
+					})),
+					emptyMessage: "No skills loaded",
+				},
+				() => {
+					done();
+					this.ui.requestRender();
+				},
+			);
+			return { component: viewer, focus: viewer };
+		});
+	}
+
+	private showExtensionsViewer(): void {
+		const extensionPaths = this.session.extensionRunner?.getExtensionPaths() ?? [];
+		this.showSelector((done) => {
+			const viewer = new InfoViewerComponent(
+				{
+					title: "Loaded Extensions",
+					subtitle: `${extensionPaths.length} extension(s)`,
+					items: extensionPaths.map((p) => ({
+						label: p.split("/").pop() ?? p,
+						detail: p,
+					})),
+					emptyMessage: "No extensions loaded",
+				},
+				() => {
+					done();
+					this.ui.requestRender();
+				},
+			);
+			return { component: viewer, focus: viewer };
+		});
+	}
+
 	private async handleModelCommand(searchTerm?: string): Promise<void> {
 		if (!searchTerm) {
 			this.showModelSelector();
@@ -3124,96 +3189,7 @@ export class InteractiveMode {
 	}
 
 	private handleHotkeysCommand(): void {
-		// Navigation keybindings
-		const cursorWordLeft = this.getEditorKeyDisplay("cursorWordLeft");
-		const cursorWordRight = this.getEditorKeyDisplay("cursorWordRight");
-		const cursorLineStart = this.getEditorKeyDisplay("cursorLineStart");
-		const cursorLineEnd = this.getEditorKeyDisplay("cursorLineEnd");
-
-		// Editing keybindings
-		const submit = this.getEditorKeyDisplay("submit");
-		const newLine = this.getEditorKeyDisplay("newLine");
-		const deleteWordBackward = this.getEditorKeyDisplay("deleteWordBackward");
-		const deleteToLineStart = this.getEditorKeyDisplay("deleteToLineStart");
-		const deleteToLineEnd = this.getEditorKeyDisplay("deleteToLineEnd");
-		const tab = this.getEditorKeyDisplay("tab");
-
-		// App keybindings
-		const interrupt = this.getAppKeyDisplay("interrupt");
-		const clear = this.getAppKeyDisplay("clear");
-		const exit = this.getAppKeyDisplay("exit");
-		const suspend = this.getAppKeyDisplay("suspend");
-		const cycleThinkingLevel = this.getAppKeyDisplay("cycleThinkingLevel");
-		const cycleModelForward = this.getAppKeyDisplay("cycleModelForward");
-		const expandTools = this.getAppKeyDisplay("expandTools");
-		const toggleThinking = this.getAppKeyDisplay("toggleThinking");
-		const externalEditor = this.getAppKeyDisplay("externalEditor");
-		const followUp = this.getAppKeyDisplay("followUp");
-		const dequeue = this.getAppKeyDisplay("dequeue");
-
-		let hotkeys = `
-**Navigation**
-| Key | Action |
-|-----|--------|
-| \`Arrow keys\` | Move cursor / browse history (Up when empty) |
-| \`${cursorWordLeft}\` / \`${cursorWordRight}\` | Move by word |
-| \`${cursorLineStart}\` | Start of line |
-| \`${cursorLineEnd}\` | End of line |
-
-**Editing**
-| Key | Action |
-|-----|--------|
-| \`${submit}\` | Send message |
-| \`${newLine}\` | New line${process.platform === "win32" ? " (Ctrl+Enter on Windows Terminal)" : ""} |
-| \`${deleteWordBackward}\` | Delete word backwards |
-| \`${deleteToLineStart}\` | Delete to start of line |
-| \`${deleteToLineEnd}\` | Delete to end of line |
-
-**Other**
-| Key | Action |
-|-----|--------|
-| \`${tab}\` | Path completion / accept autocomplete |
-| \`${interrupt}\` | Cancel autocomplete / abort streaming |
-| \`${clear}\` | Clear editor (first) / exit (second) |
-| \`${exit}\` | Exit (when editor is empty) |
-| \`${suspend}\` | Suspend to background |
-| \`${cycleThinkingLevel}\` | Cycle thinking level |
-| \`${cycleModelForward}\` | Cycle models |
-| \`${expandTools}\` | Toggle tool output expansion |
-| \`${toggleThinking}\` | Toggle thinking block visibility |
-| \`${externalEditor}\` | Edit message in external editor |
-| \`${followUp}\` | Queue follow-up message |
-| \`${dequeue}\` | Restore queued messages |
-| \`Ctrl+V\` | Paste image from clipboard |
-| \`/\` | Slash commands |
-| \`!\` | Run bash command |
-| \`!!\` | Run bash command (excluded from context) |
-`;
-
-		// Add extension-registered shortcuts
-		const extensionRunner = this.session.extensionRunner;
-		if (extensionRunner) {
-			const shortcuts = extensionRunner.getShortcuts();
-			if (shortcuts.size > 0) {
-				hotkeys += `
-**Extensions**
-| Key | Action |
-|-----|--------|
-`;
-				for (const [key, shortcut] of shortcuts) {
-					const description = shortcut.description ?? shortcut.extensionPath;
-					hotkeys += `| \`${key}\` | ${description} |\n`;
-				}
-			}
-		}
-
-		this.chatContainer.addChild(new Spacer(1));
-		this.chatContainer.addChild(new DynamicBorder());
-		this.chatContainer.addChild(new Text(theme.bold(theme.fg("accent", "Keyboard Shortcuts")), 1, 0));
-		this.chatContainer.addChild(new Spacer(1));
-		this.chatContainer.addChild(new Markdown(hotkeys.trim(), 1, 1, getMarkdownTheme()));
-		this.chatContainer.addChild(new DynamicBorder());
-		this.ui.requestRender();
+		this.showHotkeysPopup();
 	}
 
 	private async handleClearCommand(): Promise<void> {
