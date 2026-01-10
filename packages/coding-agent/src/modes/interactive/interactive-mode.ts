@@ -13,6 +13,7 @@ import {
 	getOAuthProviders,
 	type ImageContent,
 	type Message,
+	type Model,
 	type OAuthProvider,
 } from "@mariozechner/pi-ai";
 import type { EditorComponent, EditorTheme, KeyId, SlashCommand } from "@mariozechner/pi-tui";
@@ -40,6 +41,7 @@ import type {
 	ExtensionUIContext,
 	ExtensionUIDialogOptions,
 } from "../../core/extensions/index.js";
+import { FooterDataProvider, type ReadonlyFooterDataProvider } from "../../core/footer-data-provider.js";
 import { KeybindingsManager } from "../../core/keybindings.js";
 import { createCompactionSummaryMessage } from "../../core/messages.js";
 import { type SessionContext, SessionManager } from "../../core/session-manager.js";
@@ -52,7 +54,6 @@ import { extensionForImageMimeType, readClipboardImage } from "../../utils/clipb
 import { ensureTool } from "../../utils/tools-manager.js";
 import { ArminComponent } from "./components/armin.js";
 import { AssistantMessageComponent } from "./components/assistant-message.js";
-import { AutocompletePopup } from "./components/autocomplete-popup.js";
 import { BashExecutionComponent } from "./components/bash-execution.js";
 import { BorderedLoader } from "./components/bordered-loader.js";
 import { BranchSummaryMessageComponent } from "./components/branch-summary-message.js";
@@ -64,8 +65,6 @@ import { ExtensionEditorComponent } from "./components/extension-editor.js";
 import { ExtensionInputComponent } from "./components/extension-input.js";
 import { ExtensionSelectorComponent } from "./components/extension-selector.js";
 import { FooterComponent } from "./components/footer.js";
-import { HotkeysPopupComponent } from "./components/hotkeys-popup.js";
-import { InfoViewerComponent } from "./components/info-viewer.js";
 import { LoginDialogComponent } from "./components/login-dialog.js";
 import { ModelSelectorComponent } from "./components/model-selector.js";
 import { OAuthSelectorComponent } from "./components/oauth-selector.js";
@@ -75,7 +74,6 @@ import { ToolExecutionComponent } from "./components/tool-execution.js";
 import { TreeSelectorComponent } from "./components/tree-selector.js";
 import { UserMessageComponent } from "./components/user-message.js";
 import { UserMessageSelectorComponent } from "./components/user-message-selector.js";
-import { WelcomeScreenComponent } from "./components/welcome-screen.js";
 import {
 	getAvailableThemes,
 	getAvailableThemesWithPaths,
@@ -131,6 +129,7 @@ export class InteractiveMode {
 	private autocompleteProvider: CombinedAutocompleteProvider | undefined;
 	private editorContainer: Container;
 	private footer: FooterComponent;
+	private footerDataProvider: FooterDataProvider;
 	private keybindings: KeybindingsManager;
 	private version: string;
 	private isInitialized = false;
@@ -193,10 +192,6 @@ export class InteractiveMode {
 	private extensionWidgets = new Map<string, Component & { dispose?(): void }>();
 	private widgetContainer!: Container;
 
-	// Autocomplete popup (rendered above the editor)
-	private autocompleteContainer!: Container;
-	private autocompletePopup!: AutocompletePopup;
-
 	// Custom footer from extension (undefined = use built-in footer)
 	private customFooter: (Component & { dispose?(): void }) | undefined = undefined;
 
@@ -228,14 +223,13 @@ export class InteractiveMode {
 		this.pendingMessagesContainer = new Container();
 		this.statusContainer = new Container();
 		this.widgetContainer = new Container();
-		this.autocompleteContainer = new Container();
-		this.autocompletePopup = new AutocompletePopup();
 		this.keybindings = KeybindingsManager.create();
 		this.defaultEditor = new CustomEditor(getEditorTheme(), this.keybindings);
 		this.editor = this.defaultEditor;
 		this.editorContainer = new Container();
 		this.editorContainer.addChild(this.editor as Component);
-		this.footer = new FooterComponent(session);
+		this.footerDataProvider = new FooterDataProvider();
+		this.footer = new FooterComponent(session, this.footerDataProvider);
 		this.footer.setAutoCompactEnabled(session.autoCompactionEnabled);
 
 		// Load hide thinking block setting
@@ -250,9 +244,6 @@ export class InteractiveMode {
 		const slashCommands: SlashCommand[] = [
 			{ name: "settings", description: "Open settings menu" },
 			{ name: "model", description: "Select model (opens selector UI)" },
-			{ name: "context", description: "Show loaded context files" },
-			{ name: "skills", description: "Show loaded skills" },
-			{ name: "extensions", description: "Show loaded extensions" },
 			{ name: "export", description: "Export session to HTML file" },
 			{ name: "share", description: "Share session as a secret GitHub gist" },
 			{ name: "copy", description: "Copy last agent message to clipboard" },
@@ -301,17 +292,89 @@ export class InteractiveMode {
 		const fdPath = await ensureTool("fd");
 		this.setupAutocomplete(fdPath);
 
-		// Add welcome screen header
-		// NOTE: Startup hotkey instructions removed - they now live in HotkeysPopupComponent (? key).
-		// If upstream adds new hotkeys here, add them to hotkeys-popup.ts instead of restoring this block.
-		const contextFiles = loadProjectContextFiles();
-		const loadedSkills = this.session.skills;
-		const extensionPaths = this.session.extensionRunner?.getExtensionPaths() ?? [];
-		this.builtInHeader = new WelcomeScreenComponent({
-			contextFiles,
-			skills: loadedSkills,
-			extensionPaths,
-		});
+		// Add header with keybindings from config
+		const logo = theme.bold(theme.fg("accent", APP_NAME)) + theme.fg("dim", ` v${this.version}`);
+
+		// Format keybinding for startup display (lowercase, compact)
+		const formatStartupKey = (keys: string | string[]): string => {
+			const keyArray = Array.isArray(keys) ? keys : [keys];
+			return keyArray.join("/");
+		};
+
+		const kb = this.keybindings;
+		const interrupt = formatStartupKey(kb.getKeys("interrupt"));
+		const clear = formatStartupKey(kb.getKeys("clear"));
+		const exit = formatStartupKey(kb.getKeys("exit"));
+		const suspend = formatStartupKey(kb.getKeys("suspend"));
+		const deleteToLineEnd = formatStartupKey(getEditorKeybindings().getKeys("deleteToLineEnd"));
+		const cycleThinkingLevel = formatStartupKey(kb.getKeys("cycleThinkingLevel"));
+		const cycleModelForward = formatStartupKey(kb.getKeys("cycleModelForward"));
+		const cycleModelBackward = formatStartupKey(kb.getKeys("cycleModelBackward"));
+		const selectModel = formatStartupKey(kb.getKeys("selectModel"));
+		const expandTools = formatStartupKey(kb.getKeys("expandTools"));
+		const toggleThinking = formatStartupKey(kb.getKeys("toggleThinking"));
+		const externalEditor = formatStartupKey(kb.getKeys("externalEditor"));
+		const followUp = formatStartupKey(kb.getKeys("followUp"));
+		const dequeue = formatStartupKey(kb.getKeys("dequeue"));
+
+		const instructions =
+			theme.fg("dim", interrupt) +
+			theme.fg("muted", " to interrupt") +
+			"\n" +
+			theme.fg("dim", clear) +
+			theme.fg("muted", " to clear") +
+			"\n" +
+			theme.fg("dim", `${clear} twice`) +
+			theme.fg("muted", " to exit") +
+			"\n" +
+			theme.fg("dim", exit) +
+			theme.fg("muted", " to exit (empty)") +
+			"\n" +
+			theme.fg("dim", suspend) +
+			theme.fg("muted", " to suspend") +
+			"\n" +
+			theme.fg("dim", deleteToLineEnd) +
+			theme.fg("muted", " to delete to end") +
+			"\n" +
+			theme.fg("dim", cycleThinkingLevel) +
+			theme.fg("muted", " to cycle thinking") +
+			"\n" +
+			theme.fg("dim", `${cycleModelForward}/${cycleModelBackward}`) +
+			theme.fg("muted", " to cycle models") +
+			"\n" +
+			theme.fg("dim", selectModel) +
+			theme.fg("muted", " to select model") +
+			"\n" +
+			theme.fg("dim", expandTools) +
+			theme.fg("muted", " to expand tools") +
+			"\n" +
+			theme.fg("dim", toggleThinking) +
+			theme.fg("muted", " to toggle thinking") +
+			"\n" +
+			theme.fg("dim", externalEditor) +
+			theme.fg("muted", " for external editor") +
+			"\n" +
+			theme.fg("dim", "/") +
+			theme.fg("muted", " for commands") +
+			"\n" +
+			theme.fg("dim", "!") +
+			theme.fg("muted", " to run bash") +
+			"\n" +
+			theme.fg("dim", "!!") +
+			theme.fg("muted", " to run bash (no context)") +
+			"\n" +
+			theme.fg("dim", followUp) +
+			theme.fg("muted", " to queue follow-up") +
+			"\n" +
+			theme.fg("dim", dequeue) +
+			theme.fg("muted", " to restore queued messages") +
+			"\n" +
+			theme.fg("dim", "ctrl+v") +
+			theme.fg("muted", " to paste image") +
+			"\n" +
+			theme.fg("dim", "drop files") +
+			theme.fg("muted", " to attach");
+		this.builtInHeader = new Text(`${logo}\n${instructions}`, 1, 0);
 
 		// Setup UI layout
 		this.ui.addChild(new Spacer(1));
@@ -339,26 +402,9 @@ export class InteractiveMode {
 		this.ui.addChild(this.pendingMessagesContainer);
 		this.ui.addChild(this.statusContainer);
 		this.ui.addChild(this.widgetContainer);
-		this.ui.addChild(new Spacer(1));
-		this.ui.addChild(this.autocompleteContainer);
 		this.ui.addChild(this.editorContainer);
 		this.ui.addChild(this.footer);
 		this.ui.setFocus(this.editor);
-
-		// Wire up autocomplete rendering above the editor
-		this.defaultEditor.onAutocompleteChange = (isActive) => {
-			if (isActive) {
-				this.autocompletePopup.setSelectList(this.defaultEditor.getAutocompleteList());
-				// Only add to container if not already there
-				if (this.autocompleteContainer.children.length === 0) {
-					this.autocompleteContainer.addChild(this.autocompletePopup);
-				}
-			} else {
-				this.autocompleteContainer.clear();
-				this.autocompletePopup.setSelectList(undefined);
-			}
-			this.ui.requestRender();
-		};
 
 		this.setupKeyHandlers();
 		this.setupEditorSubmitHandler();
@@ -384,8 +430,8 @@ export class InteractiveMode {
 			this.ui.requestRender();
 		});
 
-		// Set up git branch watcher
-		this.footer.watchBranch(() => {
+		// Set up git branch watcher (uses provider instead of footer)
+		this.footerDataProvider.onBranchChange(() => {
 			this.ui.requestRender();
 		});
 	}
@@ -516,8 +562,23 @@ export class InteractiveMode {
 	 * Initialize the extension system with TUI-based UI context.
 	 */
 	private async initExtensions(): Promise<void> {
-		// Show skill warnings if any (keep these visible - they're actionable)
-		// Context and skills are shown in the welcome screen
+		// Show loaded project context files
+		const contextFiles = loadProjectContextFiles();
+		if (contextFiles.length > 0) {
+			const contextList = contextFiles.map((f) => theme.fg("dim", `  ${f.path}`)).join("\n");
+			this.chatContainer.addChild(new Text(theme.fg("muted", "Loaded context:\n") + contextList, 0, 0));
+			this.chatContainer.addChild(new Spacer(1));
+		}
+
+		// Show loaded skills (already discovered by SDK)
+		const skills = this.session.skills;
+		if (skills.length > 0) {
+			const skillList = skills.map((s) => theme.fg("dim", `  ${s.filePath}`)).join("\n");
+			this.chatContainer.addChild(new Text(theme.fg("muted", "Loaded skills:\n") + skillList, 0, 0));
+			this.chatContainer.addChild(new Spacer(1));
+		}
+
+		// Show skill warnings if any
 		const skillWarnings = this.session.skillWarnings;
 		if (skillWarnings.length > 0) {
 			const warningList = skillWarnings.map((w) => theme.fg("warning", `  ${w.skillPath}: ${w.message}`)).join("\n");
@@ -655,7 +716,13 @@ export class InteractiveMode {
 		// Set up extension-registered shortcuts
 		this.setupExtensionShortcuts(extensionRunner);
 
-		// Note: Extensions are shown in the welcome screen, not here
+		// Show loaded extensions
+		const extensionPaths = extensionRunner.getExtensionPaths();
+		if (extensionPaths.length > 0) {
+			const extList = extensionPaths.map((p) => theme.fg("dim", `  ${p}`)).join("\n");
+			this.chatContainer.addChild(new Text(theme.fg("muted", "Loaded extensions:\n") + extList, 0, 0));
+			this.chatContainer.addChild(new Spacer(1));
+		}
 
 		// Warn about built-in tool overrides
 		const builtInToolNames = new Set(Object.keys(allTools));
@@ -733,7 +800,7 @@ export class InteractiveMode {
 	 * Set extension status text in the footer.
 	 */
 	private setExtensionStatus(key: string, text: string | undefined): void {
-		this.footer.setExtensionStatus(key, text);
+		this.footerDataProvider.setExtensionStatus(key, text);
 		this.ui.requestRender();
 	}
 
@@ -779,10 +846,12 @@ export class InteractiveMode {
 		this.widgetContainer.clear();
 
 		if (this.extensionWidgets.size === 0) {
+			this.widgetContainer.addChild(new Spacer(1));
 			this.ui.requestRender();
 			return;
 		}
 
+		this.widgetContainer.addChild(new Spacer(1));
 		for (const [_key, component] of this.extensionWidgets) {
 			this.widgetContainer.addChild(component);
 		}
@@ -793,7 +862,11 @@ export class InteractiveMode {
 	/**
 	 * Set a custom footer component, or restore the built-in footer.
 	 */
-	private setExtensionFooter(factory: ((tui: TUI, thm: Theme) => Component & { dispose?(): void }) | undefined): void {
+	private setExtensionFooter(
+		factory:
+			| ((tui: TUI, thm: Theme, footerData: ReadonlyFooterDataProvider) => Component & { dispose?(): void })
+			| undefined,
+	): void {
 		// Dispose existing custom footer
 		if (this.customFooter?.dispose) {
 			this.customFooter.dispose();
@@ -807,8 +880,8 @@ export class InteractiveMode {
 		}
 
 		if (factory) {
-			// Create and add custom footer
-			this.customFooter = factory(this.ui, theme);
+			// Create and add custom footer, passing the data provider
+			this.customFooter = factory(this.ui, theme, this.footerDataProvider);
 			this.ui.addChild(this.customFooter);
 		} else {
 			// Restore built-in footer
@@ -1214,15 +1287,7 @@ export class InteractiveMode {
 		// so they work correctly regardless of which editor is active
 		this.defaultEditor.onEscape = () => {
 			if (this.loadingAnimation) {
-				// Abort and restore queued messages to editor
-				const { steering, followUp } = this.session.clearQueue();
-				const allQueued = [...steering, ...followUp];
-				const queuedText = allQueued.join("\n\n");
-				const currentText = this.editor.getText();
-				const combinedText = [queuedText, currentText].filter((t) => t.trim()).join("\n\n");
-				this.editor.setText(combinedText);
-				this.updatePendingMessagesDisplay();
-				this.agent.abort();
+				this.restoreQueuedMessagesToEditor({ abort: true });
 			} else if (this.session.isBashRunning) {
 				this.session.abortBash();
 			} else if (this.isBashMode) {
@@ -1248,12 +1313,6 @@ export class InteractiveMode {
 		// Register app action handlers
 		this.defaultEditor.onAction("clear", () => this.handleCtrlC());
 		this.defaultEditor.onCtrlD = () => this.handleCtrlD();
-
-		// Handle ? for help (when editor is empty)
-		this.defaultEditor.onHelp = () => {
-			this.showHotkeysPopup();
-		};
-
 		this.defaultEditor.onAction("suspend", () => this.handleCtrlZ());
 		this.defaultEditor.onAction("cycleThinkingLevel", () => this.cycleThinkingLevel());
 		this.defaultEditor.onAction("cycleModelForward", () => this.cycleModel("forward"));
@@ -1266,6 +1325,7 @@ export class InteractiveMode {
 		this.defaultEditor.onAction("toggleThinking", () => this.toggleThinkingBlockVisibility());
 		this.defaultEditor.onAction("externalEditor", () => this.openExternalEditor());
 		this.defaultEditor.onAction("followUp", () => this.handleFollowUp());
+		this.defaultEditor.onAction("dequeue", () => this.handleDequeue());
 
 		this.defaultEditor.onChange = (text: string) => {
 			const wasBashMode = this.isBashMode;
@@ -1314,24 +1374,10 @@ export class InteractiveMode {
 				this.editor.setText("");
 				return;
 			}
-			if (text === "/model") {
-				this.showModelSelector();
+			if (text === "/model" || text.startsWith("/model ")) {
+				const searchTerm = text.startsWith("/model ") ? text.slice(7).trim() : undefined;
 				this.editor.setText("");
-				return;
-			}
-			if (text === "/context") {
-				this.showContextViewer();
-				this.editor.setText("");
-				return;
-			}
-			if (text === "/skills") {
-				this.showSkillsViewer();
-				this.editor.setText("");
-				return;
-			}
-			if (text === "/extensions") {
-				this.showExtensionsViewer();
-				this.editor.setText("");
+				await this.handleModelCommand(searchTerm);
 				return;
 			}
 			if (text.startsWith("/export")) {
@@ -2041,6 +2087,15 @@ export class InteractiveMode {
 		}
 	}
 
+	private handleDequeue(): void {
+		const restored = this.restoreQueuedMessagesToEditor();
+		if (restored === 0) {
+			this.showStatus("No queued messages to restore");
+		} else {
+			this.showStatus(`Restored ${restored} queued message${restored > 1 ? "s" : ""} to editor`);
+		}
+	}
+
 	private updateEditorBorderColor(): void {
 		if (this.isBashMode) {
 			this.editor.borderColor = theme.getBashModeBorderColor();
@@ -2212,6 +2267,27 @@ export class InteractiveMode {
 				this.pendingMessagesContainer.addChild(new TruncatedText(text, 1, 0));
 			}
 		}
+	}
+
+	private restoreQueuedMessagesToEditor(options?: { abort?: boolean; currentText?: string }): number {
+		const { steering, followUp } = this.session.clearQueue();
+		const allQueued = [...steering, ...followUp];
+		if (allQueued.length === 0) {
+			this.updatePendingMessagesDisplay();
+			if (options?.abort) {
+				this.agent.abort();
+			}
+			return 0;
+		}
+		const queuedText = allQueued.join("\n\n");
+		const currentText = options?.currentText ?? this.editor.getText();
+		const combinedText = [queuedText, currentText].filter((t) => t.trim()).join("\n\n");
+		this.editor.setText(combinedText);
+		this.updatePendingMessagesDisplay();
+		if (options?.abort) {
+			this.agent.abort();
+		}
+		return allQueued.length;
 	}
 
 	private queueCompactionMessage(text: string, mode: "steer" | "followUp"): void {
@@ -2430,93 +2506,69 @@ export class InteractiveMode {
 		});
 	}
 
-	private showHotkeysPopup(): void {
-		this.showSelector((done) => {
-			const extensionRunner = this.session.extensionRunner;
-			const extensionShortcuts = extensionRunner ? extensionRunner.getShortcuts() : undefined;
+	private async handleModelCommand(searchTerm?: string): Promise<void> {
+		if (!searchTerm) {
+			this.showModelSelector();
+			return;
+		}
 
-			const popup = new HotkeysPopupComponent(
-				{
-					editorKeyDisplay: (action) => this.getEditorKeyDisplay(action as any),
-					appKeyDisplay: (action) => this.getAppKeyDisplay(action as any),
-					extensionShortcuts,
-				},
-				() => {
-					done();
-					this.ui.requestRender();
-				},
-			);
-			return { component: popup, focus: popup };
-		});
+		const model = await this.findExactModelMatch(searchTerm);
+		if (model) {
+			try {
+				await this.session.setModel(model);
+				this.footer.invalidate();
+				this.updateEditorBorderColor();
+				this.showStatus(`Model: ${model.id}`);
+			} catch (error) {
+				this.showError(error instanceof Error ? error.message : String(error));
+			}
+			return;
+		}
+
+		this.showModelSelector(searchTerm);
 	}
 
-	private showContextViewer(): void {
-		const contextFiles = loadProjectContextFiles();
-		this.showSelector((done) => {
-			const viewer = new InfoViewerComponent(
-				{
-					title: "Loaded Context",
-					subtitle: `${contextFiles.length} file(s)`,
-					items: contextFiles.map((f) => ({
-						label: f.path,
-						detail: `${f.content.length} chars`,
-					})),
-					emptyMessage: "No context files loaded",
-				},
-				() => {
-					done();
-					this.ui.requestRender();
-				},
-			);
-			return { component: viewer, focus: viewer };
+	private async findExactModelMatch(searchTerm: string): Promise<Model<any> | undefined> {
+		const term = searchTerm.trim();
+		if (!term) return undefined;
+
+		let targetProvider: string | undefined;
+		let targetModelId = "";
+
+		if (term.includes("/")) {
+			const parts = term.split("/", 2);
+			targetProvider = parts[0]?.trim().toLowerCase();
+			targetModelId = parts[1]?.trim().toLowerCase() ?? "";
+		} else {
+			targetModelId = term.toLowerCase();
+		}
+
+		if (!targetModelId) return undefined;
+
+		const models = await this.getModelCandidates();
+		const exactMatches = models.filter((item) => {
+			const idMatch = item.id.toLowerCase() === targetModelId;
+			const providerMatch = !targetProvider || item.provider.toLowerCase() === targetProvider;
+			return idMatch && providerMatch;
 		});
+
+		return exactMatches.length === 1 ? exactMatches[0] : undefined;
 	}
 
-	private showSkillsViewer(): void {
-		const skills = this.session.skills;
-		this.showSelector((done) => {
-			const viewer = new InfoViewerComponent(
-				{
-					title: "Loaded Skills",
-					subtitle: `${skills.length} skill(s)`,
-					items: skills.map((s) => ({
-						label: s.name,
-						detail: s.filePath,
-					})),
-					emptyMessage: "No skills loaded",
-				},
-				() => {
-					done();
-					this.ui.requestRender();
-				},
-			);
-			return { component: viewer, focus: viewer };
-		});
+	private async getModelCandidates(): Promise<Model<any>[]> {
+		if (this.session.scopedModels.length > 0) {
+			return this.session.scopedModels.map((scoped) => scoped.model);
+		}
+
+		this.session.modelRegistry.refresh();
+		try {
+			return await this.session.modelRegistry.getAvailable();
+		} catch {
+			return [];
+		}
 	}
 
-	private showExtensionsViewer(): void {
-		const extensionPaths = this.session.extensionRunner?.getExtensionPaths() ?? [];
-		this.showSelector((done) => {
-			const viewer = new InfoViewerComponent(
-				{
-					title: "Loaded Extensions",
-					subtitle: `${extensionPaths.length} extension(s)`,
-					items: extensionPaths.map((p) => ({
-						label: p.split("/").pop() ?? p,
-						detail: p,
-					})),
-					emptyMessage: "No extensions loaded",
-				},
-				() => {
-					done();
-					this.ui.requestRender();
-				},
-			);
-			return { component: viewer, focus: viewer };
-		});
-	}
-
-	private showModelSelector(): void {
+	private showModelSelector(initialSearchInput?: string): void {
 		this.showSelector((done) => {
 			const selector = new ModelSelectorComponent(
 				this.ui,
@@ -2540,6 +2592,7 @@ export class InteractiveMode {
 					done();
 					this.ui.requestRender();
 				},
+				initialSearchInput,
 			);
 			return { component: selector, focus: selector };
 		});
@@ -3096,6 +3149,7 @@ export class InteractiveMode {
 		const toggleThinking = this.getAppKeyDisplay("toggleThinking");
 		const externalEditor = this.getAppKeyDisplay("externalEditor");
 		const followUp = this.getAppKeyDisplay("followUp");
+		const dequeue = this.getAppKeyDisplay("dequeue");
 
 		let hotkeys = `
 **Navigation**
@@ -3129,6 +3183,7 @@ export class InteractiveMode {
 | \`${toggleThinking}\` | Toggle thinking block visibility |
 | \`${externalEditor}\` | Edit message in external editor |
 | \`${followUp}\` | Queue follow-up message |
+| \`${dequeue}\` | Restore queued messages |
 | \`Ctrl+V\` | Paste image from clipboard |
 | \`/\` | Slash commands |
 | \`!\` | Run bash command |
@@ -3382,6 +3437,7 @@ export class InteractiveMode {
 			this.loadingAnimation = undefined;
 		}
 		this.footer.dispose();
+		this.footerDataProvider.dispose();
 		if (this.unsubscribe) {
 			this.unsubscribe();
 		}

@@ -307,6 +307,9 @@ export const streamOpenAICompletions: StreamFunction<"openai-completions"> = (
 			for (const block of output.content) delete (block as any).index;
 			output.stopReason = options?.signal?.aborted ? "aborted" : "error";
 			output.errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
+			// Some providers via OpenRouter give additional information in this field.
+			const rawMetadata = (error as any)?.error?.metadata?.raw;
+			if (rawMetadata) output.errorMessage += `\n${rawMetadata}`;
 			stream.push({ type: "error", reason: output.stopReason, error: output });
 			stream.end();
 		}
@@ -367,8 +370,11 @@ function buildParams(model: Model<"openai-completions">, context: Context, optio
 		model: model.id,
 		messages,
 		stream: true,
-		stream_options: { include_usage: true },
 	};
+
+	if (compat.supportsUsageInStreaming !== false) {
+		(params as any).stream_options = { include_usage: true };
+	}
 
 	if (compat.supportsStore) {
 		params.store = false;
@@ -609,6 +615,7 @@ function convertTools(tools: Tool[]): OpenAI.Chat.Completions.ChatCompletionTool
 			name: tool.name,
 			description: tool.description,
 			parameters: tool.parameters as any, // TypeBox already generates JSON Schema
+			strict: false, // Disable strict mode to allow optional parameters without null unions
 		},
 	}));
 }
@@ -653,6 +660,7 @@ function detectCompatFromUrl(baseUrl: string): Required<OpenAICompat> {
 		supportsStore: !isNonStandard,
 		supportsDeveloperRole: !isNonStandard,
 		supportsReasoningEffort: !isGrok,
+		supportsUsageInStreaming: true,
 		maxTokensField: useMaxTokens ? "max_tokens" : "max_completion_tokens",
 		requiresToolResultName: isMistral,
 		requiresAssistantAfterToolResult: false, // Mistral no longer requires this as of Dec 2024
@@ -673,6 +681,7 @@ function getCompat(model: Model<"openai-completions">): Required<OpenAICompat> {
 		supportsStore: model.compat.supportsStore ?? detected.supportsStore,
 		supportsDeveloperRole: model.compat.supportsDeveloperRole ?? detected.supportsDeveloperRole,
 		supportsReasoningEffort: model.compat.supportsReasoningEffort ?? detected.supportsReasoningEffort,
+		supportsUsageInStreaming: model.compat.supportsUsageInStreaming ?? detected.supportsUsageInStreaming,
 		maxTokensField: model.compat.maxTokensField ?? detected.maxTokensField,
 		requiresToolResultName: model.compat.requiresToolResultName ?? detected.requiresToolResultName,
 		requiresAssistantAfterToolResult:

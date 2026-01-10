@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+## [0.42.2] - 2026-01-10
+
+### Added
+
+- Added `GOOGLE_APPLICATION_CREDENTIALS` env var support for Vertex AI credential detection (standard for CI/production).
+- Added `supportsUsageInStreaming` compatibility flag for OpenAI-compatible providers that reject `stream_options: { include_usage: true }`. Defaults to `true`. Set to `false` in model config for providers like gatewayz.ai. ([#596](https://github.com/badlogic/pi-mono/pull/596) by [@XesGaDeus](https://github.com/XesGaDeus))
+- Improved Google model pricing info ([#588](https://github.com/badlogic/pi-mono/pull/588) by [@aadishv](https://github.com/aadishv))
+
+### Fixed
+
+- Fixed `os.homedir()` calls at module load time; now resolved lazily when needed.
+- Fixed OpenAI Responses tool strict flag to use a boolean for LM Studio compatibility ([#598](https://github.com/badlogic/pi-mono/pull/598) by [@gnattu](https://github.com/gnattu))
+- Fixed Google Cloud Code Assist OAuth for paid subscriptions: properly handles long-running operations for project provisioning, supports `GOOGLE_CLOUD_PROJECT` / `GOOGLE_CLOUD_PROJECT_ID` env vars for paid tiers, and handles VPC-SC affected users ([#582](https://github.com/badlogic/pi-mono/pull/582) by [@cmf](https://github.com/cmf))
+
+## [0.42.1] - 2026-01-09
+
 ## [0.42.0] - 2026-01-09
 
 ### Added

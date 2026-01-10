@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+## [0.42.2] - 2026-01-10
+
+### Added
+
+- `/model <search>` now pre-filters the model selector or auto-selects on exact match. Use `provider/model` syntax to disambiguate (e.g., `/model openai/gpt-4`). ([#587](https://github.com/badlogic/pi-mono/pull/587) by [@zedrdave](https://github.com/zedrdave))
+- `FooterDataProvider` for custom footers: `ctx.ui.setFooter()` now receives a third `footerData` parameter providing `getGitBranch()`, `getExtensionStatuses()`, and `onBranchChange()` for reactive updates ([#600](https://github.com/badlogic/pi-mono/pull/600) by [@nicobailon](https://github.com/nicobailon))
+- `Alt+Up` hotkey to restore queued steering/follow-up messages back into the editor without aborting the current run ([#604](https://github.com/badlogic/pi-mono/pull/604) by [@tmustier](https://github.com/tmustier))
+
+### Fixed
+
+- Fixed LM Studio compatibility for OpenAI Responses tool strict mapping in the ai provider ([#598](https://github.com/badlogic/pi-mono/pull/598) by [@gnattu](https://github.com/gnattu))
+
+## [0.42.1] - 2026-01-09
+
+### Fixed
+
+- Symlinked directories in `prompts/` folders are now followed when loading prompt templates ([#601](https://github.com/badlogic/pi-mono/pull/601) by [@aliou](https://github.com/aliou))
+
 ## [0.42.0] - 2026-01-09
 
 ### Added

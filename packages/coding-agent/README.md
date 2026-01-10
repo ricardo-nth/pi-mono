@@ -197,6 +197,7 @@ pi
 - Gemini CLI uses the production Cloud Code Assist endpoint (standard Gemini models)
 - Antigravity uses a sandbox endpoint with access to Gemini 3, Claude (sonnet/opus thinking), and GPT-OSS models
 - Both are free with any Google account, subject to rate limits
+- Paid Cloud Code Assist subscriptions: set `GOOGLE_CLOUD_PROJECT` or `GOOGLE_CLOUD_PROJECT_ID` env var to your project ID
 
 **OpenAI Codex notes:**
 - Requires ChatGPT Plus/Pro OAuth (`/login openai-codex`)
@@ -234,7 +235,7 @@ The agent reads, writes, and edits files, and executes commands via bash.
 | Command | Description |
 |---------|-------------|
 | `/settings` | Open settings menu (thinking, theme, message delivery modes, toggles) |
-| `/model` | Switch models mid-session (fuzzy search, arrow keys, Enter to select) |
+| `/model` | Switch models mid-session. Use `/model <search>` or `provider/model` to prefilter/disambiguate. |
 | `/export [file]` | Export session to self-contained HTML |
 | `/share` | Upload session as secret GitHub gist, get shareable URL (requires `gh` CLI) |
 | `/session` | Show session info: path, message counts, token usage, cost |
@@ -649,6 +650,7 @@ To fully replace a built-in provider with custom models, include the `models` ar
 | `supportsStore` | Whether provider supports `store` field |
 | `supportsDeveloperRole` | Use `developer` vs `system` role |
 | `supportsReasoningEffort` | Support for `reasoning_effort` parameter |
+| `supportsUsageInStreaming` | Whether provider supports `stream_options: { include_usage: true }`. Default: `true` |
 | `maxTokensField` | Use `max_completion_tokens` or `max_tokens` |
 
 **Live reload:** The file reloads each time you open `/model`. Edit during session; no restart needed.

@@ -37,6 +37,11 @@ When closing issues via commit:
 - Include `fixes #<number>` or `closes #<number>` in the commit message
 - This automatically closes the issue when the commit is merged
 
+## PR Workflow
+- Analyze PRs without pulling locally first
+- If the user approves: create a feature branch, pull PR, rebase on main, apply adjustments, commit, merge into main, push, close PR, and leave a comment in the user's tone
+- You never open PRs yourself. We work in feature branches until everything is according to the user's requirements, then merge into main, and push.
+
 ## Tools
 - GitHub CLI for issues/PRs
 - Add package labels to issues/PRs: pkg:agent, pkg:ai, pkg:coding-agent, pkg:mom, pkg:pods, pkg:tui, pkg:web-ui
@@ -72,13 +77,20 @@ Use these sections under `## [Unreleased]`:
 
 ## Releasing
 
+**Lockstep versioning**: All packages always share the same version number. Every release updates all packages together.
+
+**Version semantics** (no major releases):
+- `patch`: Bug fixes and new features
+- `minor`: API breaking changes
+
+### Steps
+
 1. **Update CHANGELOGs**: Ensure all changes since last release are documented in the `[Unreleased]` section of each affected package's CHANGELOG.md
 
 2. **Run release script**:
    ```bash
-   npm run release:patch    # Bug fixes
-   npm run release:minor    # New features
-   npm run release:major    # Breaking changes
+   npm run release:patch    # Fixes and additions
+   npm run release:minor    # API breaking changes
    ```
 
 The script handles: version bump, CHANGELOG finalization, commit, tag, publish, and adding new `[Unreleased]` sections.
