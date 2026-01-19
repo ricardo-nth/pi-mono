@@ -29,10 +29,10 @@ Replace inline slash command menus with a proper command palette popup, similar 
 - Recent commands / favorites
 - Integrated hotkeys view (`?` to show shortcuts)
 
-### Level 3: True Floating Palette (Requires TUI Work)
+### Level 3: True Floating Palette (Now Possible!)
 - Centered modal that floats over content
-- Requires sticky footer work first
-- More polished UX
+- Use `ctx.ui.custom(..., { overlay: true })` - added in upstream v0.42.0
+- See `examples/extensions/overlay-test.ts` for working example
 
 ## Visual Concept (Level 1 - Full Screen)
 
@@ -87,6 +87,15 @@ It **replaces the editor container** temporarily - same pattern used by:
 - Tree selector (`showTreeSelector()`)
 - Session selector (`showSessionSelector()`)
 
+**NEW in v0.42.0**: Pass `{ overlay: true }` as second argument to composite over existing content instead of replacing it:
+
+```typescript
+const result = await ctx.ui.custom<string>(
+  (tui, theme, keybindings, done) => myComponent,
+  { overlay: true }  // floats over content!
+);
+```
+
 ### Existing Patterns to Reuse
 
 | Component | What it does | Reusable for palette? |
@@ -107,9 +116,10 @@ All already available to gather into palette.
 ### Why Effort Reduced
 
 - Original estimate: high
-- Revised estimate: **medium**
+- Revised estimate: **medium** (could drop to low for Level 1)
 - Reason: `ctx.ui.custom()` + existing `SelectList` + `showSelector()` pattern
 - Can build incrementally, Level 1 is straightforward
+- Level 3 floating overlay now trivial with `{ overlay: true }` option
 
 ## Implementation Plan
 
@@ -121,8 +131,8 @@ All already available to gather into palette.
 
 ## Dependencies
 
-- None for Level 1 (full-screen)
-- Sticky footer for Level 3 (floating)
+- None - all levels now achievable with extension API
+- Overlay support landed in upstream v0.42.0
 
 ## Inspiration
 

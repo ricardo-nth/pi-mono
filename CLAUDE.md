@@ -41,13 +41,13 @@ Pi has a powerful extension system. Extensions survive upstream merges without c
 | Status indicators | `ctx.ui.setStatus()` | Turn counters, progress |
 | Welcome screens | `session_start` hook | ASCII art, custom splash |
 | Command palettes | `ctx.ui.custom()` | Full-screen selectors |
+| Floating overlays | `ctx.ui.custom({ overlay: true })` | Modal dialogs, palettes |
 | System prompt mods | `before_agent_start` | Custom instructions |
 
 ### What Needs Core Changes
 
 - Model selector modifications (no hook)
 - Input/editor behavior (no hook)
-- True floating overlays (TUI limitation)
 
 ### Backlog Ideas
 

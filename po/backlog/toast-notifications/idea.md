@@ -1,14 +1,13 @@
 ---
 title: Toast Notifications
 area: header
-implementation: hybrid
+implementation: extension
 effort: medium
 impact: medium
-risk: medium
-status: blocked
-files:
-  - packages/tui/src/tui.ts
-extensionApi: ctx.ui.setWidget() for basic version
+risk: low
+status: idea
+files: []
+extensionApi: ctx.ui.custom({ overlay: true })
 created: 2026-01-06
 ---
 
@@ -114,17 +113,45 @@ Use `ctx.ui.setWidget()` for a simpler "notification area" above the editor. Not
 - Non-intrusive but informative
 - Foundation for more notification types later
 
-## Status: Blocked (2026-01-08)
+## Status Update (2026-01-09) - Unblocked!
 
-TUI doesn't support true overlay/toast rendering. The closest equivalent is **widgets** (`ctx.ui.setWidget()`), which:
-- Render above the editor (not floating)
-- Can auto-dismiss with `setTimeout`
-- Work well for transient notifications
+### Widgets Didn't Work Out
 
-**Re-imagine as:** Widget-based notifications for:
-- Background task status (if/when supported)
-- Errors or warnings
-- Agent handoff notifications
-- Anything that benefits from timed display
+We tried `ctx.ui.setWidget()` but it wasn't suitable:
+- Renders above the editor, not floating
+- Disrupts layout flow
+- Not visually what we wanted
 
-Not useful for hot-reload notifications since skills/extensions can't be hot-loaded.
+### Overlay Support Now Available (v0.42.0)
+
+The TUI now has proper overlay compositing via `ctx.ui.custom({ overlay: true })`:
+
+```typescript
+// Show a floating toast
+await ctx.ui.custom<void>(
+  (tui, theme, kb, done) => new ToastComponent(theme, done),
+  { overlay: true }  // composites over existing content!
+);
+```
+
+The overlay system:
+- Maintains an `overlayStack` for multiple overlays
+- Uses `compositeLineAt()` to splice overlay content into base lines
+- Preserves ANSI styling across overlay boundaries
+- See `examples/extensions/overlay-test.ts` for working example
+
+### What's Now Possible
+
+- True floating toasts in any corner
+- Multiple stacked notifications
+- Auto-dismiss with timers
+- Proper z-ordering
+
+### Implementation Approach
+
+1. Create `ToastComponent` with fixed width/height
+2. Position in top-right using overlay options
+3. Use `setTimeout` to call `done()` for auto-dismiss
+4. Stack multiple toasts with offset positioning
+
+**Risk reduced from medium to low** - proven pattern from overlay-test example.

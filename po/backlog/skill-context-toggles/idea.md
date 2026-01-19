@@ -132,17 +132,19 @@ This is medium-high effort and could be a separate feature.
 
 ### Discovering All Skills (Including Disabled)
 
-Currently `loadSkills()` filters out ignored skills before returning. To show all skills with their state, we'd need:
+~~Currently `loadSkills()` filters out ignored skills before returning. To show all skills with their state, we'd need a new function.~~
+
+**Update (v0.39.0)**: The `discoverSkills()` function now returns warnings alongside skills:
 
 ```typescript
-function discoverAllSkills(options): { 
-  loaded: Skill[], 
-  ignored: Skill[],
-  warnings: SkillWarning[] 
-}
+const { skills, warnings } = discoverSkills(options);
+// skills: Skill[] - loaded skills
+// warnings: SkillWarning[] - parsing errors, duplicates, etc.
 ```
 
-Or modify the existing function to return the full list with an `enabled` flag on each.
+Additionally, `AgentSession.skills` is now accessible, making it easier to get the current skill list from extension context.
+
+This improves Phase 1 implementation - we have better API support for discovering skill state.
 
 ### Settings Persistence
 

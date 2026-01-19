@@ -55,3 +55,13 @@ coding-agent  R3.8k W17k  ████░░░░ 12%
 
 With the custom `powerline-footer.ts` extension, can add cache stats as toggleable line.
 Same pattern as cost display - extend existing footer extension with `/footer cache` toggle.
+
+## Status (2026-01-09) - Ready to Implement
+
+Same as cost display - the `ctx.ui.setFooter()` API is working in our footer extension. Just needs:
+
+1. Access cache read/write token counts from session
+2. Format as `R3.8k W17k`
+3. Add to footer line with toggle
+
+**No blockers** - implement alongside cost display for consistency.

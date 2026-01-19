@@ -1,15 +1,13 @@
 ---
 title: Color Themes
 area: global
-implementation: hybrid
-effort: high
+implementation: extension
+effort: medium
 impact: high
 risk: low
 status: idea
-files:
-  - packages/coding-agent/src/modes/interactive/theme/
-  - packages/tui/src/
-extensionApi: unknown - needs research on theme loading API
+files: []
+extensionApi: ctx.ui.getAllThemes(), ctx.ui.getTheme(), ctx.ui.setTheme()
 created: 2026-01-06
 ---
 
@@ -87,6 +85,30 @@ Or for custom:
 - Check if TUI framework supports full 24-bit color
 - May need fallback for terminals with limited color support
 - Should detect terminal capabilities
+
+## Upstream Update (v0.39.0) - Theme API Now Available!
+
+The extension API now has full theme support:
+
+```typescript
+// Get all available themes
+const themes = ctx.ui.getAllThemes();  // string[]
+
+// Get a specific theme by name
+const theme = ctx.ui.getTheme("dark");  // Theme object
+
+// Set theme at runtime (by name or full Theme object)
+ctx.ui.setTheme("light");
+ctx.ui.setTheme(customThemeObject);
+```
+
+This means we can build a theme switcher as a **pure extension**:
+1. Register `/theme` command
+2. Show theme picker using `ctx.ui.custom({ overlay: true })`
+3. Apply with `ctx.ui.setTheme()`
+4. Optionally persist preference to settings
+
+**Effort reduced from high to medium** - no core changes needed.
 
 ## Inspiration
 
